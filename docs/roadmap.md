@@ -166,14 +166,49 @@ The developer's plan of 2026-09-30, reordered for dependencies. The platform
     and the Steam Deck (Game Mode). The web test page shows it. Upstream
     ImGui 1.92.9b-docking with ImGui's own renderers; pith's OS layer feeds
     its input. Open: safe-area insets on phones.
-12. Shaders and tools for agents: `ph::shaders` on Slang (SPIR-V, DXIL, WGSL,
-    later MSL, and reflection); the `pith` CLI (`pith shader compile`, JSON
-    output) that CMake runs at build time; `pith mcp`, an MCP server whose
-    tools mirror the CLI.
-13. The triangle on every OS from compiled shaders (buffers, pipelines), and
-    frame readback: screenshot tests, and the MCP screenshot tool.
-14. Devlink: a small dev-only server in apps (logs, screenshots, variables,
+12. Done: shaders and tools for agents. The `pith` tool (pith ADR 0014):
+    `pith shader compile` (Slang to SPIR-V, DXIL or WGSL, with the vertex
+    inputs from reflection) and `pith embed`, with text or JSON output; `pith
+    mcp` serves the same commands as MCP tools (`.mcp.json` in both repos).
+    CMake compiles shaders at build time and embeds them in the executable
+    (pith ADR 0013: embedded now; content packs with the first real asset).
+    The design principles are in pith's `docs/design-principles.md`.
+13. Done: the triangle on every OS (`hello_triangle`), from compiled shaders
+    and pipelines. No buffers yet, at the developer's request: the vertices
+    come from SV_VertexID. Verified on Win32 (Vulkan, D3D12, Dawn), UWP (log
+    only), Chrome, Pixel 9 Pro XL, Quest 3 (flat) and the Steam Deck (Game
+    Mode). Pipeline creation: 16 ms on Vulkan (RTX 3080), 5–14 ms on phones
+    and Quest, 6 ms on the Deck.
+13c. Done: what Vulkan reports on every test device, in pith's
+    `docs/devices/` (the `vulkan_caps` app, `scripts/capture-vulkan-caps.ps1`),
+    with a comparison table. Four of five GPUs are UMA with all video memory
+    CPU-writable; the RTX 3080 has no resizable BAR (256 MB window); present
+    timing on the Pixel and the Deck's driver; HDR10 and scRGB on the RTX
+    3080, the Deck (Game Mode) and the Pixel.
+14. GPU data v1 (steps 14–19 follow the design of 2026-09-30, pith ADRs
+    0015 GPU data, 0016 materials and 0017 swapchains, in dependency order):
+    the transient upload ring, `UpdateBuffer`, readback,
+    draw constants (push constants, root constants, a uniform fallback on
+    WebGPU), and bind groups built from shader reflection (shader blob v2).
+    Sample: `hello_triangle` animated through a frame uniform block and draw
+    constants.
+15. Screenshots (the old 13b): readback of the swapchain image, `--screenshot`
+    in samples, `pith image compare`, screenshot tests on every target, and
+    screenshots through `pith mcp`. Open: Android pre-rotation (drawing in
+    landscape is probably rotated; not checked yet).
+16. Textures, samplers and persistent buffers, then materials v1 (types from
+    Slang files, parameters in one persistent GPU buffer, C++ structs
+    generated from reflection). Sample: several materials on quads.
+17. Frame pacing v1: present modes, waiting for earlier presents
+    (present_wait2, the DXGI waitable object, fences), timing statistics in
+    the diagnostics window, Android's frame rate request.
+18. HDR: an RGBA16F scene target and the output pass (tone map, UI at paper
+    white, SDR/scRGB/HDR10 encoding), display color info from each OS,
+    runtime HDR changes.
+19. Present timing targets (Pixel now; the Deck once gamescope passes present
+    timing through) and VRR.
+20. Devlink: a small dev-only server in apps (logs, screenshots, variables,
     shader hot reload from the PC to every device), reached through
     `pith mcp`.
-15. Editor backbone: an ImGui docking app on Win32, with Slang shaders edited
+21. Editor backbone: an ImGui docking app on Win32, with Slang shaders edited
     and reloaded live.

@@ -6,30 +6,30 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Debug: hello_clear (win32, Vulkan)",
+			"name": "Debug: hello_triangle (win32, Vulkan)",
 			"type": "cppvsdbg",
 			"request": "launch",
-			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_vulkan.exe",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_triangle_vulkan.exe",
 			"cwd": "${workspaceFolder}/../pith",
 			"console": "integratedTerminal",
 			"preLaunchTask": "build: win32 Debug",
 			"presentation": { "group": "1 debug", "order": 1 }
 		},
 		{
-			"name": "Debug: hello_clear (win32, D3D12)",
+			"name": "Debug: hello_triangle (win32, D3D12)",
 			"type": "cppvsdbg",
 			"request": "launch",
-			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_d3d12.exe",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_triangle_d3d12.exe",
 			"cwd": "${workspaceFolder}/../pith",
 			"console": "integratedTerminal",
 			"preLaunchTask": "build: win32 Debug",
 			"presentation": { "group": "1 debug", "order": 2 }
 		},
 		{
-			"name": "Debug: hello_clear (win32, WebGPU)",
+			"name": "Debug: hello_triangle (win32, WebGPU)",
 			"type": "cppvsdbg",
 			"request": "launch",
-			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_webgpu.exe",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_triangle_webgpu.exe",
 			"cwd": "${workspaceFolder}/../pith",
 			"console": "integratedTerminal",
 			"preLaunchTask": "build: win32 Debug",
@@ -40,7 +40,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "win32"],
+			"args": ["hello_triangle", "-On", "win32"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 1 }
 		},
@@ -49,7 +49,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "uwp"],
+			"args": ["hello_triangle", "-On", "uwp"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 2 }
 		},
@@ -58,7 +58,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "web"],
+			"args": ["hello_triangle", "-On", "web"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 3 }
 		},
@@ -67,7 +67,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "android"],
+			"args": ["hello_triangle", "-On", "android"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 4 }
 		},
@@ -76,7 +76,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "deck"],
+			"args": ["hello_triangle", "-On", "deck"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 5 }
 		},
@@ -85,7 +85,7 @@
 			"type": "PowerShell",
 			"request": "launch",
 			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
-			"args": ["hello_clear", "-On", "deck-game", "-Arguments", "--fullscreen"],
+			"args": ["hello_triangle", "-On", "deck-game", "-Arguments", "--fullscreen"],
 			"cwd": "${workspaceFolder}/../pith",
 			"presentation": { "group": "2 run", "order": 6 }
 		}

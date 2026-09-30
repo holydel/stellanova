@@ -6,6 +6,12 @@ Private repo, never public. Built on the `pith` engine, checked out as a
 sibling at `../pith` (see `../pith/CLAUDE.md` for engine rules). Never
 commit API keys. Game design: `docs/vision.md`. Plan: `docs/roadmap.md`.
 
+## Design principles
+
+pith's, for the game code too:
+
+@../pith/docs/design-principles.md
+
 ## Targets
 
 Terms follow pith's glossary (`../pith/CLAUDE.md`): OS, platform (store),

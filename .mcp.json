@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"pith": {
+			"command": "${CLAUDE_PROJECT_DIR}/../pith/build/windows-msvc/bin/Dev/pith.exe",
+			"args": ["mcp"]
+		}
+	}
+}

@@ -10,7 +10,7 @@
 			"label": "run: win32 (Vulkan)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "vulkan"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "win32", "-Backend", "vulkan"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -18,7 +18,7 @@
 			"label": "run: win32 (D3D12)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "d3d12"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "win32", "-Backend", "d3d12"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -26,7 +26,7 @@
 			"label": "run: win32 (WebGPU)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "webgpu"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "win32", "-Backend", "webgpu"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -34,7 +34,7 @@
 			"label": "run: UWP (D3D12)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "uwp"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "uwp"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -42,7 +42,7 @@
 			"label": "run: web (Chrome)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "web"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "web"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -50,7 +50,7 @@
 			"label": "run: Android (first arm64 device, or ANDROID_SERIAL)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "android"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "android"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -58,7 +58,7 @@
 			"label": "run: Steam Deck (Desktop Mode)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "deck"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "deck"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -66,7 +66,7 @@
 			"label": "run: Steam Deck (Game Mode)",
 			"type": "process",
 			"command": "pwsh",
-			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "deck-game", "-Arguments", "--fullscreen"],
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_triangle", "-On", "deck-game", "-Arguments", "--fullscreen"],
 			"presentation": { "panel": "dedicated", "clear": true },
 			"problemMatcher": []
 		},
@@ -98,7 +98,7 @@
 		}
 	],
 	"inputs": [
-		{ "id": "app", "type": "pickString", "description": "App", "options": ["hello_clear", "hello_window"], "default": "hello_clear" },
+		{ "id": "app", "type": "pickString", "description": "App", "options": ["hello_triangle", "hello_clear", "hello_window"], "default": "hello_triangle" },
 		{ "id": "target", "type": "pickString", "description": "Where", "options": ["win32", "uwp", "web", "android", "deck", "deck-game"], "default": "win32" },
 		{ "id": "backend", "type": "pickString", "description": "RHI backend (auto: the target's default)", "options": ["auto", "vulkan", "d3d12", "webgpu"], "default": "auto" },
 		{ "id": "config", "type": "pickString", "description": "Configuration", "options": ["Dev", "Debug", "Retail"], "default": "Dev" }
