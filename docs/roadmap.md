@@ -270,5 +270,11 @@ streams split into position and the rest.
     MCP tools. hello_scene's camera, sun and paper white are variables.
     Open: shader hot reload, the web (WebSocket), UWP's loopback exemption,
     a run on the phones and the Deck.
-26. Editor backbone: an ImGui docking app on Win32, with Slang shaders edited
-    and reloaded live.
+26. Done (pith ADR 0024): the editor backbone, `pith_editor_vulkan` and
+    `_d3d12`. An ImGui docking app with a scene view (render targets of any
+    size, shown in ImGui), a Slang shader editor that compiles 0.4 s after
+    typing stops and swaps the lit pipeline between frames (about 0.2 s;
+    errors show with line and column, the last good pipeline stays), the
+    shader's material parameters by name, the log, and the diagnostics.
+    Changes made to the file by other editors load too. Open: saved
+    layouts, a scene format and selection (M0.6), undo.

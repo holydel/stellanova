@@ -50,6 +50,13 @@ device session would settle. Remove items once answered.
 
 ## Decisions for the developer
 
+- **What comes after step 26?** Every agreed step is done except 24 (the
+  Pixel). Candidates: the scene graph (M0.6, its own ADR), shader hot
+  reload on devices through devlink, the job system for the CPU sprite
+  update, texture compression (KTX2, BC and ASTC), or the first stellanova
+  code (a ship in a starfield, offline).
+- **The editor edits the engine's real shaders** (lit.slang by default;
+  Save writes the file). Good, or should it work on copies?
 - **Devlink's port and reach:** 7707 on 127.0.0.1 by default; 0.0.0.0 only
   when asked. Good, or should devlink need a token even on the LAN?
 
