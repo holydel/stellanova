@@ -261,9 +261,14 @@ streams split into position and the rest.
     nits, peak 456): scRGB and HDR10 on Vulkan and D3D12, checked by
     screenshots turned back to SDR. Open: Android, the Deck, the web, UWP.
 24. Present timing targets (Pixel now; the Deck once gamescope passes present
-    timing through) and VRR.
-25. Devlink: a small dev-only server in apps (logs, screenshots, variables,
-    shader hot reload from the PC to every device), reached through
-    `pith mcp`.
+    timing through) and VRR. Deferred on 2026-10-01: only the Pixel and the
+    Deck have `VK_EXT_present_timing`, and neither was reachable; done once
+    the Pixel is back (see `questions.md`).
+25. Done on Win32 (pith ADR 0023): devlink v1. Debug and Dev builds connect
+    out to pith (TCP 7707, JSON lines; `adb reverse` for phones);
+    `pith app list | info | logs | vars | set | screenshot | quit`, also as
+    MCP tools. hello_scene's camera, sun and paper white are variables.
+    Open: shader hot reload, the web (WebSocket), UWP's loopback exemption,
+    a run on the phones and the Deck.
 26. Editor backbone: an ImGui docking app on Win32, with Slang shaders edited
     and reloaded live.

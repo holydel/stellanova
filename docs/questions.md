@@ -40,7 +40,18 @@ device session would settle. Remove items once answered.
   offscreen targets. Window sizes differ there, so today only Win32 has
   screenshot tests.
 
+- **Step 24 (present timing) waits for the Pixel:** only the Pixel and the
+  Deck have `VK_EXT_present_timing`. With the phone connected and unlocked
+  it can be built and measured.
+- **Devlink on devices** (step 25): with the Pixel, `run.ps1 hello_scene
+  -On android` then `pith app screenshot`; the Deck needs
+  `--devlink <PC's address>:7707` and `pith app ... --listen 0.0.0.0`
+  (open the Windows firewall for port 7707 on the private network).
+
 ## Decisions for the developer
+
+- **Devlink's port and reach:** 7707 on 127.0.0.1 by default; 0.0.0.0 only
+  when asked. Good, or should devlink need a token even on the LAN?
 
 - **NVIDIA driver settings on the dev PC:** every present mode, mailbox and
   immediate included, runs at 280 Hz, even fullscreen. `vkQueuePresentKHR`
