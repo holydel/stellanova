@@ -105,7 +105,7 @@ control.
 ## Technology (game side)
 
 - C++ only; no scripting language. Hot reload: maybe later.
-- Minimal dependencies. Goal: 1 second from tapping the icon to a starfield
+- Minimal dependencies. Goal: 2 seconds from tapping the icon to a starfield
   with a ship.
 - English at launch; plan for AI-assisted translation (no hard-coded
   strings).

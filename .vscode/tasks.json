@@ -1,0 +1,106 @@
+{
+	// Runs pith's samples on every target from this workspace, through
+	// ../pith/scripts/run.ps1: it builds, runs, and prints the app's log in
+	// the task's terminal (Terminal > Run Task). Each target gets its own
+	// terminal, so logs stay apart.
+	"version": "2.0.0",
+	"options": { "cwd": "${workspaceFolder}/../pith" },
+	"tasks": [
+		{
+			"label": "run: win32 (Vulkan)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "vulkan"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: win32 (D3D12)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "d3d12"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: win32 (WebGPU)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "win32", "-Backend", "webgpu"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: UWP (D3D12)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "uwp"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: web (Chrome)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "web"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: Android (first arm64 device, or ANDROID_SERIAL)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "android"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: Steam Deck (Desktop Mode)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "deck"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: Steam Deck (Game Mode)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "hello_clear", "-On", "deck-game", "-Arguments", "--fullscreen"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "run: pick app, target, backend, config...",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run.ps1", "${input:app}",
+				"-On", "${input:target}", "-Backend", "${input:backend}", "-Config", "${input:config}"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "check (every preset and device)",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/check.ps1"],
+			"presentation": { "panel": "dedicated", "clear": true },
+			"problemMatcher": []
+		},
+		// For the debugger entries in launch.json.
+		{
+			"label": "build: win32 Debug",
+			"type": "process",
+			"command": "pwsh",
+			"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/build.ps1", "windows-msvc", "-Config", "Debug"],
+			"problemMatcher": "$msCompile",
+			"group": "build"
+		}
+	],
+	"inputs": [
+		{ "id": "app", "type": "pickString", "description": "App", "options": ["hello_clear", "hello_window"], "default": "hello_clear" },
+		{ "id": "target", "type": "pickString", "description": "Where", "options": ["win32", "uwp", "web", "android", "deck", "deck-game"], "default": "win32" },
+		{ "id": "backend", "type": "pickString", "description": "RHI backend (auto: the target's default)", "options": ["auto", "vulkan", "d3d12", "webgpu"], "default": "auto" },
+		{ "id": "config", "type": "pickString", "description": "Configuration", "options": ["Dev", "Debug", "Retail"], "default": "Dev" }
+	]
+}

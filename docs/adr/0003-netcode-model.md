@@ -35,9 +35,9 @@ transport. The transport itself is an engine decision (see pith ADRs).
   correction is too expensive, and it needs strict determinism. Revisit for
   small PvP skirmishes if prediction plus lag compensation is not enough.
 - **Determinism** is not needed for correctness. Keep the sim deterministic
-  for the same build on the same platform where it is cheap (fixed tick,
+  for the same build on the same OS where it is cheap (fixed tick,
   seeded random numbers, no uninitialized state): it helps tests, bots and
-  debugging. Bit-exact results across platforms are not a goal.
+  debugging. Bit-exact results across operating systems are not a goal.
 
 ## Consequences
 

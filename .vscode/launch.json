@@ -1,24 +1,93 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "cppdbg",
-      "request": "launch",
-      "args": [],
-      "stopAtEntry": false,
-      "externalConsole": true,
-      "cwd": "d:/Projects/stellanova",
-      "program": "d:/Projects/stellanova/build/Debug/outDebug",
-      "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ]
-    }
-  ]
+	// Run and Debug (F5). The Debug entries start a Win32 sample under the
+	// Visual Studio debugger after a Debug build. The Run entries run a sample
+	// on any target through ../pith/scripts/run.ps1 (the PowerShell extension
+	// hosts the script; the app's log shows in its terminal).
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug: hello_clear (win32, Vulkan)",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_vulkan.exe",
+			"cwd": "${workspaceFolder}/../pith",
+			"console": "integratedTerminal",
+			"preLaunchTask": "build: win32 Debug",
+			"presentation": { "group": "1 debug", "order": 1 }
+		},
+		{
+			"name": "Debug: hello_clear (win32, D3D12)",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_d3d12.exe",
+			"cwd": "${workspaceFolder}/../pith",
+			"console": "integratedTerminal",
+			"preLaunchTask": "build: win32 Debug",
+			"presentation": { "group": "1 debug", "order": 2 }
+		},
+		{
+			"name": "Debug: hello_clear (win32, WebGPU)",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/../pith/build/windows-msvc/bin/Debug/hello_clear_webgpu.exe",
+			"cwd": "${workspaceFolder}/../pith",
+			"console": "integratedTerminal",
+			"preLaunchTask": "build: win32 Debug",
+			"presentation": { "group": "1 debug", "order": 3 }
+		},
+		{
+			"name": "Run: win32",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "win32"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 1 }
+		},
+		{
+			"name": "Run: UWP",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "uwp"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 2 }
+		},
+		{
+			"name": "Run: web (Chrome)",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "web"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 3 }
+		},
+		{
+			"name": "Run: Android",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "android"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 4 }
+		},
+		{
+			"name": "Run: Steam Deck (Desktop Mode)",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "deck"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 5 }
+		},
+		{
+			"name": "Run: Steam Deck (Game Mode)",
+			"type": "PowerShell",
+			"request": "launch",
+			"script": "${workspaceFolder}/../pith/scripts/run.ps1",
+			"args": ["hello_clear", "-On", "deck-game", "-Arguments", "--fullscreen"],
+			"cwd": "${workspaceFolder}/../pith",
+			"presentation": { "group": "2 run", "order": 6 }
+		}
+	]
 }

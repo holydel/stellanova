@@ -6,13 +6,16 @@ Private repo, never public. Built on the `pith` engine, checked out as a
 sibling at `../pith` (see `../pith/CLAUDE.md` for engine rules). Never
 commit API keys. Game design: `docs/vision.md`. Plan: `docs/roadmap.md`.
 
-## Platforms
+## Targets
 
-Windows, Linux (Steam Deck, Steam Frame), macOS/iOS, Android (phones, Quest,
-Android XR), with a VR mode on XR headsets, and a runnable web build (web
-login and purchases are decided later).
-Stores: Steam, Google Play, Meta Horizon Store, App Store.
-(UWP is for engine demos only, not the game.)
+Terms follow pith's glossary (`../pith/CLAUDE.md`): OS, platform (store),
+device.
+
+- OS: Windows, Linux (Steam Deck, Steam Frame), macOS/iOS, Android (phones,
+  Quest, Android XR), with a VR mode on XR headsets, and a runnable web
+  build. (UWP is for engine demos only, not the game.)
+- Platforms: Steam, Meta, Google Play, Apple. The web has none: web login
+  and purchases are decided later.
 
 ## Architecture
 
@@ -25,7 +28,7 @@ Stores: Steam, Google Play, Meta Horizon Store, App Store.
 - Online games: the same server code runs as `stellanova-server` (Linux).
 - Backend services (accounts, inventory, purchases, persistent state) are
   third-party only: no self-written backend.
-- Minimal dependencies: the goal is 1 second from tapping the icon to a
+- Minimal dependencies: the goal is 2 seconds from tapping the icon to a
   starfield with a ship.
 
 ## Conventions
