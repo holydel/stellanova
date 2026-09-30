@@ -27,6 +27,15 @@ device session would settle. Remove items once answered.
   wait each uses, the latency at each setting, and whether the Pixel
   switches to 120 Hz on the frame rate request (pith's
   `docs/devices/pacing.md`).
+- **HDR on the dev PC's display** (step 23): hello_scene picks scRGB there
+  (Windows reports HDR on, SDR white 240 nits, peak 456). Screenshots can
+  only check the numbers, so please look: are the UI's whites as bright
+  as other windows' whites, and do highlights look right? Compare
+  `hello_scene_vulkan` with `--output scrgb`, `--output hdr10` and
+  `--output sdr`.
+- **HDR on the Pixel and the Deck:** not wired yet. Android needs
+  `Display.isHdr` and the HDR/SDR ratio; the Deck needs gamescope's
+  metadata. Until then both run SDR unless `--output hdr10` is given.
 - **Screenshot comparison on the web and on devices** needs fixed-size
   offscreen targets. Window sizes differ there, so today only Win32 has
   screenshot tests.
@@ -43,6 +52,13 @@ device session would settle. Remove items once answered.
   display's highest rate with "only if seamless". "Always" would also
   switch modes that blank the screen for a moment. Which should a game use
   at startup?
+- **Tone mapping:** a soft shoulder on the largest channel, starting at 80%
+  of the headroom (hue-preserving; bright colors do not turn white). Good
+  enough until real content and a look are chosen, or should it be a
+  filmic curve (ACES, AgX) now?
+- **D3D12 scRGB costs a refresh of latency** on the dev PC: 10.6 ms
+  against 8.5 ms in SDR (FIFO, latency 2). Vulkan's scRGB shows no such
+  cost. Prefer Vulkan on Windows for HDR, or HDR10 on D3D12?
 - **Default latency:** 2 presented frames (7.1 ms at 280 Hz on Vulkan);
   1 halves it but leaves no slack for an uneven frame. Keep 2 as the
   default, with 1 as a player setting?

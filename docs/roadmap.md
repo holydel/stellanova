@@ -252,9 +252,14 @@ streams split into position and the rest.
     at 280 Hz: Vulkan latency is exactly 1, 2 or 3 refreshes; D3D12 one
     refresh more. Open: the phones, the Quest and the Deck; the driver holds
     mailbox and immediate to 280 Hz (pith's `docs/devices/pacing.md`).
-23. HDR: an RGBA16F scene target and the output pass (tone map, UI at paper
-    white, SDR/scRGB/HDR10 encoding), display color info from each OS,
-    runtime HDR changes, the user's HDR on/off setting.
+23. Done on Win32 (pith ADR 0017, "Implementation"): HDR v1. Render
+    targets; an RGBA16F scene target and the output pass (a hue-preserving
+    shoulder to the display's headroom, UI at paper white, SDR, scRGB or
+    HDR10 encoding); display color from Windows (HDR on, SDR white, peak);
+    swapchains made again when HDR changes; the user's HDR setting and paper
+    white in the diagnostics window. On the dev PC (HDR on, SDR white 240
+    nits, peak 456): scRGB and HDR10 on Vulkan and D3D12, checked by
+    screenshots turned back to SDR. Open: Android, the Deck, the web, UWP.
 24. Present timing targets (Pixel now; the Deck once gamescope passes present
     timing through) and VRR.
 25. Devlink: a small dev-only server in apps (logs, screenshots, variables,
