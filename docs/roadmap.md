@@ -224,8 +224,10 @@ streams split into position and the rest.
     under 1 ms for 1.6 MB; NVIDIA's tiling equals linear): uploads stay on
     staging until the phones and the Deck are measured
     (`docs/devices/uploads.md`).
-18. Dear ImGui drawn through pith's RHI, so it gets pre-rotation on Android
-    and drops ImGui's three renderers.
+18. Done: Dear ImGui drawn through pith's RHI (pith ADR 0021): one renderer
+    for every backend with Android pre-rotation, colors correct on every
+    backend, ImGui's own renderers dropped. The RHI gained vertex streams.
+    Open: pre-rotation checked on the Pixel.
 19. Materials v1 (ADR 0016): types from Slang files, parameters in one
     persistent buffer, C++ structs from reflection.
 20. 3D scene and camera: depth (reversed Z, 32-bit float), vertex streams
