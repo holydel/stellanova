@@ -228,13 +228,21 @@ streams split into position and the rest.
     for every backend with Android pre-rotation, colors correct on every
     backend, ImGui's own renderers dropped. The RHI gained vertex streams.
     Open: pre-rotation checked on the Pixel.
-19. Materials v1 (ADR 0016): types from Slang files, parameters in one
-    persistent buffer, C++ structs from reflection.
-20. 3D scene and camera: depth (reversed Z, 32-bit float), vertex streams
-    (position apart from the rest), an object list, orbit and free (WASD)
-    cameras with ImGui controls.
-21. Generated primitives (cube, geosphere, cylinder, plane, UV sphere,
-    cone), colored and textured, with one directional light and ambient.
+19. Done: materials v1 (pith ADR 0016, Accepted). A material type is a
+    Slang file's group 1; shader blobs (version 3) record every block's
+    fields, so parameters are set by name or through C++ structs that
+    `ph_add_shaders` generates (`<file>.types.h`, offsets checked by
+    `static_assert`). Parameters live in one persistent buffer, a 256-byte
+    slot each, uploaded when they change.
+20. Done: 3D scene and camera (pith ADR 0022). glTF conventions, reversed-Z
+    Depth32Float depth on every backend, meshes with the position stream
+    apart from the rest, a lit material (sun and ambient light in the frame
+    block, now 192 bytes), orbit and free (WASD) cameras with ImGui
+    controls. `hello_scene` is a screenshot test; Vulkan, D3D12 and Dawn
+    differ by at most 1.
+21. Done: generated primitives (cube, plane, UV sphere, geosphere, cylinder,
+    cone), colored by normal or textured, all wound from their normals.
+    Open: the geosphere's UV seam.
 22. Frame pacing v1: present modes, waiting for earlier presents
     (present_wait2, the DXGI waitable object, fences), timing statistics in
     the diagnostics window, Android's frame rate request.
