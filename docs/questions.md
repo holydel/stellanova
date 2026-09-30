@@ -39,7 +39,6 @@ device session would settle. Remove items once answered.
 - **Screenshot comparison on the web and on devices** needs fixed-size
   offscreen targets. Window sizes differ there, so today only Win32 has
   screenshot tests.
-
 - **Step 24 (present timing) waits for the Pixel:** only the Pixel and the
   Deck have `VK_EXT_present_timing`. With the phone connected and unlocked
   it can be built and measured.
@@ -59,7 +58,6 @@ device session would settle. Remove items once answered.
   Save writes the file). Good, or should it work on copies?
 - **Devlink's port and reach:** 7707 on 127.0.0.1 by default; 0.0.0.0 only
   when asked. Good, or should devlink need a token even on the LAN?
-
 - **NVIDIA driver settings on the dev PC:** every present mode, mailbox and
   immediate included, runs at 280 Hz, even fullscreen. `vkQueuePresentKHR`
   blocks and DXGI counts one refresh per frame. Is "Vertical sync" forced
@@ -80,7 +78,6 @@ device session would settle. Remove items once answered.
 - **Default latency:** 2 presented frames (7.1 ms at 280 Hz on Vulkan);
   1 halves it but leaves no slack for an uneven frame. Keep 2 as the
   default, with 1 as a player setting?
-
 - **Canvas sprites in passes with depth:** sprite pipelines have no depth
   variant yet. Add one per depth format (as ImGui does), or keep 2D in
   passes of its own?
@@ -88,5 +85,5 @@ device session would settle. Remove items once answered.
   so a texture wraps wrongly along one meridian. Fix now, or when a
   textured planet needs it?
 - **CPU sprite update:** single-threaded, it limits moving sprites to about
-  1.76M at 60 Hz on the RTX 3080. A job system is the next step; is now
-  the right time, or after the frame pacing and HDR steps?
+  1.76M at 60 Hz on the RTX 3080. A job system is the next step for it;
+  see "What comes after step 26?".
