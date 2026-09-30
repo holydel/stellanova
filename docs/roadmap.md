@@ -243,9 +243,15 @@ streams split into position and the rest.
 21. Done: generated primitives (cube, plane, UV sphere, geosphere, cylinder,
     cone), colored by normal or textured, all wound from their normals.
     Open: the geosphere's UV seam.
-22. Frame pacing v1: present modes, waiting for earlier presents
-    (present_wait2, the DXGI waitable object, fences), timing statistics in
-    the diagnostics window, Android's frame rate request.
+22. Done on Win32 (pith ADR 0017, "Implementation"): frame pacing v1.
+    Present modes (FIFO, FIFO latest ready, mailbox, immediate) with
+    fallbacks, a latency of 1-3 presented frames, waited for after each
+    present (present wait 2 or 1 on Vulkan, the DXGI waitable object),
+    statistics in the diagnostics window (latency from frame start to
+    display, DXGI's refresh counts), Android's frame rate request. RTX 3080
+    at 280 Hz: Vulkan latency is exactly 1, 2 or 3 refreshes; D3D12 one
+    refresh more. Open: the phones, the Quest and the Deck; the driver holds
+    mailbox and immediate to 280 Hz (pith's `docs/devices/pacing.md`).
 23. HDR: an RGBA16F scene target and the output pass (tone map, UI at paper
     white, SDR/scRGB/HDR10 encoding), display color info from each OS,
     runtime HDR changes, the user's HDR on/off setting.

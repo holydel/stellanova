@@ -23,11 +23,29 @@ device session would settle. Remove items once answered.
 - **Host image copy** (step 17, `hello_textures --measure-uploads`) on the
   phones and the Deck. The results decide whether packs should hold
   textures pre-swizzled for the device (pith's `docs/devices/uploads.md`).
+- **Frame pacing** (step 22) on the Pixel, the Quest and the Deck: which
+  wait each uses, the latency at each setting, and whether the Pixel
+  switches to 120 Hz on the frame rate request (pith's
+  `docs/devices/pacing.md`).
 - **Screenshot comparison on the web and on devices** needs fixed-size
   offscreen targets. Window sizes differ there, so today only Win32 has
   screenshot tests.
 
 ## Decisions for the developer
+
+- **NVIDIA driver settings on the dev PC:** every present mode, mailbox and
+  immediate included, runs at 280 Hz, even fullscreen. `vkQueuePresentKHR`
+  blocks and DXGI counts one refresh per frame. Is "Vertical sync" forced
+  on in the NVIDIA Control Panel (a common G-SYNC setup)? If so, can it be
+  set to "Use the 3D application setting" for pith's executables, so the
+  modes can be compared?
+- **Android frame rate request strategy:** the samples ask for the
+  display's highest rate with "only if seamless". "Always" would also
+  switch modes that blank the screen for a moment. Which should a game use
+  at startup?
+- **Default latency:** 2 presented frames (7.1 ms at 280 Hz on Vulkan);
+  1 halves it but leaves no slack for an uneven frame. Keep 2 as the
+  default, with 1 as a player setting?
 
 - **Canvas sprites in passes with depth:** sprite pipelines have no depth
   variant yet. Add one per depth format (as ImGui does), or keep 2D in
