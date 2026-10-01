@@ -1,0 +1,8 @@
+/build/
+/out/
+/.vs/
+/.cache/
+CMakeUserPresets.json
+
+# Your own content files (content/README.md): never committed.
+/content/local/

@@ -44,6 +44,32 @@ device.
 - Layout: `sim/` `client/` `server/` `bots/` `content/` `docs/`.
 - Record significant decisions as ADRs in `docs/adr/`.
 
+## Build and run
+
+- `scripts/build.ps1 <preset> [-Config Dev] [-Target stellanova]`: presets
+  `windows-msvc`, `windows-clang`, `web`, `linux-x64` (`CMakePresets.json`),
+  and `android` (an APK through pith's Gradle project, `-Pph.root`; package
+  and label in `scripts/android.ps1`).
+  pith builds as a subdirectory (`SN_PITH_DIR`, default `../pith`) without
+  its samples, tests and tools; the pith tool of pith's own `windows-msvc`
+  Dev build makes the shaders and packs, and the script builds it first.
+- `scripts/run.ps1 [-On win32|web|deck|android] [-Arguments '...']
+  [-Screenshot shot.png]` builds and runs the game and prints its log. Options: pith's
+  shell options (`ph/shell/shell.h`: `--frames`, `--screenshot`,
+  `--platform none`...), `--flight` (start flying) and `--mute`.
+- Tests: `ctest --test-dir build/<preset> -C Dev` (`sn_tests`, smoke runs of
+  the menu and of flight, and the menu's screenshot test on Windows);
+  `scripts/check.ps1` checks formatting, builds every preset in every
+  configuration and runs the tests (the Deck's over SSH). Run it before
+  every commit.
+- Code: `sim/` (`sn::sim`: the simulation and the protocol), `server/`
+  (`sn::server`: the match's authority; a local game runs it in the client
+  over pith's loopback), `client/` (`stellanova`: menu, settings, flight),
+  `content/` (the pack manifest, the strings tables, the pinned sources and
+  their credits).
+- Steam: the game runs as app 1096260 (`client/src/main.cpp`); pith's
+  samples use 480.
+
 ## Game (short)
 
 - Modes: skirmish (fleet vs fleet, rising tiers), battle (a MOBA-like

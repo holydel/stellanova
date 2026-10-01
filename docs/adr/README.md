@@ -12,3 +12,5 @@ Engine decisions live in `../pith/docs/adr/`.
 | 0003 | [Netcode model: snapshots, own-ship prediction, lag compensation](0003-netcode-model.md) | Proposed |
 | 0004 | [Match history as an event log; finishers from a client buffer](0004-match-history.md) | Proposed |
 | 0005 | [Backend services: brainCloud behind our own interface](0005-backend-services.md) | Proposed |
+| 0006 | [The client: pith's shell, screens, text from string tables](0006-client-structure.md) | Proposed |
+| 0007 | [The local server: the same server code over loopback](0007-local-server.md) | Proposed |

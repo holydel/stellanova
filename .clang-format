@@ -1,0 +1,39 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 100
+UseTab: AlignWithSpaces
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+NamespaceIndentation: None
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+AlwaysBreakTemplateDeclarations: Yes
+IncludeBlocks: Regroup
+# pith's style (../pith/.clang-format), with the game's headers first, then
+# pith's. windows.h must come before the other Windows headers.
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<sn/'
+    Priority: 2
+  - Regex: '^<ph/'
+    Priority: 3
+  - Regex: '^<windows\.h>$'
+    Priority: 4
+    SortPriority: 4
+  - Regex: '^<[a-z_]+>$'
+    Priority: 6
+  - Regex: '.*'
+    Priority: 4
+    SortPriority: 5

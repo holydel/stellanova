@@ -1,0 +1,17 @@
+{
+	"entries": [
+		{"name": "sans", "font": "source:noto_sans", "atlas": {"charsets": ["ascii", "latin1"], "pageSize": 512}},
+		{"name": "sans_bold", "font": "source:noto_sans_bold", "atlas": {"charsets": ["ascii"], "pageSize": 512}},
+		{"name": "sky", "cubemap": "source:starmap", "size": 512},
+		{"name": "ship", "mesh": "source:kenney_space/Models/GLTF format/craft_speederA.glb", "center": true, "scale": 1.5},
+		{"name": "rock_a", "mesh": "source:kenney_space/Models/GLTF format/meteor_detailed.glb", "center": true},
+		{"name": "rock_b", "mesh": "source:kenney_space/Models/GLTF format/rock_largeA.glb", "center": true},
+		{"name": "rock_c", "mesh": "source:kenney_space/Models/GLTF format/meteor.glb", "center": true},
+		{"name": "strings.en", "file": "strings/en.txt"},
+		{"name": "ui_move", "file": "source:kenney_scifi/Audio/laserRetro_000.ogg"},
+		{"name": "ui_confirm", "file": "source:kenney_scifi/Audio/forceField_001.ogg"},
+		{"name": "ui_back", "file": "source:kenney_scifi/Audio/doorClose_000.ogg"},
+		{"name": "ambience", "file": "source:kenney_scifi/Audio/spaceEngineLow_000.ogg"},
+		{"name": "thruster", "file": "source:kenney_scifi/Audio/thrusterFire_000.ogg"}
+	]
+}

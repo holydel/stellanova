@@ -1,0 +1,27 @@
+# Stella Nova: English. "key = text"; every language has the same keys.
+# {} is where a number goes.
+
+game.title = Stella Nova
+menu.subtitle = A war among the stars
+menu.skirmish = Skirmish
+menu.settings = Settings
+menu.credits = Credits
+menu.quit = Quit
+menu.back = Back
+menu.hint = Arrows or the stick to choose, Enter or A to go, Esc or B to go back
+
+settings.title = Settings
+settings.music = Music
+settings.effects = Effects
+settings.fullscreen = Fullscreen
+settings.on = On
+settings.off = Off
+
+credits.title = Credits
+credits.sky = The sky: NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC
+credits.fonts = Noto Sans, under the SIL Open Font License
+credits.sounds = Models and sounds: Kenney (www.kenney.nl)
+credits.engine = Made with pith
+
+flight.speed = Speed: {} m/s
+flight.hint = W A S D or the left stick to fly; or hold a finger where to go. Esc: the menu

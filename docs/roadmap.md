@@ -71,6 +71,10 @@ engine goals of their own: the scene graph and the XR layer.
 - **M1.1 Starfield and a ship.** Baked mesh format v0 (glTF in, runtime
   layout out); `sim/` with a fixed tick; loopback server; direct control
   (keyboard, mouse, gamepad, touch). Measure "2 seconds to starfield".
+  Done 2026-10-01 (steps 33-35): `sim/` with a fixed tick, the local
+  server over loopback, direct control on every input, the starfield and a
+  ship baked from glTF, measured (0.8 s on the dev PC, 0.14 s on the
+  Deck).
 - **M1.2 XR layer (pith).** OpenXR session, multiview stereo, 6DoF
   controllers, haptics on Quest, Galaxy XR and SteamVR. Sample: the
   starfield and ship on a virtual table.
@@ -303,3 +307,64 @@ XR and the Steam Deck (the target: a game without spikes).
     one at the far plane; `hello_scene` shows NASA's Deep Star Maps.
     Verified on the RTX 3080 (three backends), the Deck and the Pixel.
     Open: BC6H and ASTC HDR, mipmaps, the developer's own panorama.
+
+The developer's list of 2026-10-01 (afternoon): text, then the parts a first
+game build needs (input, Steam, audio), then the game itself, starting with
+a menu. App IDs: 480 (Spacewar) for pith, 1096260 for Stella Nova.
+
+29. Done (pith ADR 0026): text. FreeType reads fonts and HarfBuzz shapes
+    them (both pinned, built lean: 1.06 MB of Retail wasm for hello_text);
+    msdfgen makes MTSDF glyph images, in atlases at package time for the
+    characters a game shows up front and on a worker at run time for the
+    rest (Arabic, Devanagari); right-to-left runs reordered (simplified
+    bidi); fill, outline, glow and shadow from the distance field; text in
+    the canvas and in 3D scenes, depth-tested. Vulkan, D3D12 and Dawn agree
+    within 1; Chrome and the Pixel draw it too.
+30. Done (pith ADR 0027): input on every OS. Touch (the first finger also
+    drives the mouse; fixed: the web on Android had no touch at all) and
+    gamepads in the standard layout: XInput, evdev (the Deck), GameActivity,
+    the browser's Gamepad API. `hello_input` shows them. Open: a person
+    pressing every button on the Deck and a PC pad, to check the mapping.
+31. Done (pith ADR 0028): Steam from the private Steamworks SDK when it is
+    in `third_party/private` (`PH_STEAM`), connected on a thread (Steam's
+    init took up to 3.9 s): the player, the overlay, Steam hardware. Checked
+    on the Deck in Game Mode and on Windows with the Steam client.
+32. Done (pith ADR 0029): audio on miniaudio. Started on a thread (WASAPI
+    takes 65 ms); sounds are a pack's WAV or Ogg Vorbis files decoded on
+    miniaudio's thread; four buses; positional voices; a mixer without a
+    device for tests. Plays on Windows (WASAPI), in Chrome (Web Audio) and
+    on the Deck (PulseAudio); +176 KB of wasm, +383 KB on Windows. Content
+    sources may now be archives (Kenney's Sci-Fi Sounds, CC0).
+33. Done (pith ADR 0030) with Stella Nova's first code. pith's shell (the
+    samples' frame code, now `ph::shell_<backend>`) runs games too; the
+    game builds pith as a subdirectory of its own CMake project
+    (`scripts/build.ps1`, `scripts/run.ps1`). `sim/`: ships with a flight
+    model at a fixed 30 Hz tick (ADR 0001's pools; tests). `client/`
+    (`stellanova`): a main menu over a turning ship and the starfield
+    (Skirmish, Settings, Quit), a settings page (music and effects volume,
+    fullscreen; saved in settings.txt), and a flight screen (one ship flown
+    by keys, a gamepad, the mouse or a finger, drawn between ticks, rocks
+    for speed, the thruster's sound following the throttle). Every word on
+    screen comes from `content/strings/en.txt` (ADR 0006). The menu, the
+    settings and flight run on Windows (driven by real key presses), in
+    Chrome and on the Deck (90 Hz, no frame over 11.3 ms); the starfield
+    shows 0.8 s after start on the dev PC (Dev; 2.3 s on a cold first run)
+    and 0.14 s on the Deck. The APK builds through pith's Gradle project
+    (`scripts/build.ps1 android`). Open: running it on Android (no device
+    tonight); Steam with app 1096260 (`questions.md`); the loopback server
+    (pith's net module).
+34. Done (pith ADR 0031): meshes from glTF, baked v0. `pith pak build`
+    "mesh" entries read glTF 2.0 with cgltf (tools only) into pith's
+    runtime layout (`ph/assets/mesh.h`: positions, 24-byte vertices,
+    indices), with the nodes' transforms and the materials' colors in the
+    vertices; `render::LoadPackMesh` reads them in place. The game flies
+    Kenney's Space Kit (CC0) craft among three meteor models instead of
+    primitives. Open (v1): quantized vertices, meshoptimizer, textures.
+35. Done (pith ADR 0032, Stella Nova ADR 0007): the local server. pith's
+    `ph::net` v0: servers and clients by address, reliable and unreliable
+    messages (1200 bytes at most), polled events; the loopback transport.
+    The game's `server/` owns the match: Hello and Welcome, the newest
+    Input from each player, the fixed tick, a Snapshot to every client
+    after each tick (`sim/protocol.h`). A skirmish starts the server in the
+    client's process and flies through it. Open: UDP and
+    `stellanova-server`, prediction of the own ship once there is delay.

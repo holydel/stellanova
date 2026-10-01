@@ -1,13 +1,18 @@
 # Deploying web test pages
 
-pith's web samples can be published on the developer's server for testing on
-other devices (phones, headsets, other browsers). Two are live, both Dev
-builds with the ImGui diagnostics window:
+pith's web samples and the game can be published on the developer's server
+for testing on other devices (phones, headsets, other browsers). Three are
+live, all Dev builds with the ImGui diagnostics window (the game's opens
+with F1):
 
 | Page | App | Files in `/srv/pith-web/` |
 | --- | --- | --- |
 | <https://wos-observer.com/test_webgpu.html> | `hello_clear_webgpu` | `test_webgpu.html`, `.js`, `.wasm` |
 | <https://wos-observer.com/test_scene.html> (since 2026-10-01) | `hello_scene_webgpu`, under the star-map sky | `test_scene.html`, `.js`, `.wasm`, `.data` |
+| <https://wos-observer.com/stellanova.html> (since 2026-10-01) | Stella Nova, this repository's `stellanova` | `stellanova.html`, `.js`, `.wasm`, `.data` |
+
+Anyone with a page's address can open it: there is no password, and the
+game's page and files carry its codename.
 
 An app with a content pack has a fourth file, `<app>.data`: Emscripten's
 preload of the pack (`hello_scene.pak`, 7.9 MB), which the `.js` fetches
@@ -50,6 +55,15 @@ scp -i $key "$bin\hello_clear_webgpu.js" "$bin\hello_clear_webgpu.wasm" "${serve
 ssh -i $key $server 'chown root:caddy /srv/pith-web/*; chmod 640 /srv/pith-web/*'
 ```
 
+The game's page keeps its name, so all four files go up as they are:
+
+```powershell
+D:\Projects\stellanova\scripts\build.ps1 web -Config Dev -Target stellanova
+$bin = 'D:\Projects\stellanova\build\web\bin\Dev'
+scp -i $key "$bin\stellanova.html" "$bin\stellanova.js" "$bin\stellanova.wasm" "$bin\stellanova.data" "${server}:/srv/pith-web/"
+ssh -i $key $server 'chown root:caddy /srv/pith-web/*; chmod 640 /srv/pith-web/*'
+```
+
 Check it (from the server itself, or any machine):
 
 ```powershell
@@ -86,6 +100,13 @@ If many pages are coming, one `handle_path /pith/*` block serving
 
 ## Undo
 
+Each backup is the Caddyfile from before one page: restoring an older one
+also removes the pages added after it.
+
+- The game's page only: restore
+  `/etc/caddy/Caddyfile.before-stellanova-20261001T152552Z`, run
+  `systemctl reload caddy`, and delete `stellanova.*` from
+  `/srv/pith-web/`.
 - The scene page only: restore
   `/etc/caddy/Caddyfile.before-pith-scene-20261001T043830Z`, run
   `systemctl reload caddy`, and delete `test_scene.html` and
