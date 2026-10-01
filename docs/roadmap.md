@@ -278,3 +278,28 @@ streams split into position and the rest.
     shader's material parameters by name, the log, and the diagnostics.
     Changes made to the file by other editors load too. Open: saved
     layouts, a scene format and selection (M0.6), undo.
+
+The developer's list of 2026-10-01, after a round on the Pixel, the Galaxy
+XR and the Steam Deck (the target: a game without spikes).
+
+27. Done: GPU diagnostics and the device round (pith ADRs 0005, 0017). A
+    latency of 1 presented frame by default, without the slider; ACES (Hill's
+    fit) with 18% grey kept at every headroom; HDR found on the Deck through
+    gamescope (HDR10, peak 1015 nits from the EDID). Per-pass GPU
+    timestamps and pipeline statistics, debug labels for RenderDoc and PIX,
+    the GPU memory budget, and the machine's memory and processor use, in
+    the diagnostics window and `pith app stats`. All formats captured on
+    every device (`docs/devices/README.md`); the Galaxy XR (Adreno 740)
+    joined. Fixed: Android's exit crash (strict JNI checks) and devlink on
+    Android (the INTERNET permission). Open: the Galaxy XR's and the
+    Quest's capture while worn.
+28. Done (pith ADR 0025): content sources and the sky. `content/sources.json`
+    pins downloads (URL, SHA-256, license, credit) that CMake fetches into
+    the shared cache; `content/local/` holds a developer's own files, never
+    committed; manifests say `source:NAME` or `local:PATH`. Each app ships
+    its own `<name>.pak` (they had overwritten each other's `initial.pak`).
+    Cube maps from equirectangular OpenEXR or `.hdr` panoramas, stored as
+    RGB9E5; `pith image cubemap` writes the faces. `render::DrawSky` draws
+    one at the far plane; `hello_scene` shows NASA's Deep Star Maps.
+    Verified on the RTX 3080 (three backends), the Deck and the Pixel.
+    Open: BC6H and ASTC HDR, mipmaps, the developer's own panorama.

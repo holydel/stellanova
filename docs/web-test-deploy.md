@@ -1,9 +1,17 @@
 # Deploying web test pages
 
 pith's web samples can be published on the developer's server for testing on
-other devices (phones, headsets, other browsers). The first one is live at
-<https://wos-observer.com/test_webgpu.html> (`hello_clear_webgpu`, Dev, with
-the ImGui diagnostics window).
+other devices (phones, headsets, other browsers). Two are live, both Dev
+builds with the ImGui diagnostics window:
+
+| Page | App | Files in `/srv/pith-web/` |
+| --- | --- | --- |
+| <https://wos-observer.com/test_webgpu.html> | `hello_clear_webgpu` | `test_webgpu.html`, `.js`, `.wasm` |
+| <https://wos-observer.com/test_scene.html> (since 2026-10-01) | `hello_scene_webgpu`, under the star-map sky | `test_scene.html`, `.js`, `.wasm`, `.data` |
+
+An app with a content pack has a fourth file, `<app>.data`: Emscripten's
+preload of the pack (`hello_scene.pak`, 7.9 MB), which the `.js` fetches
+by that name before `main`.
 
 **Which build:** Dev shows the debug UI (Dear ImGui: GPU, OS, frame times;
 about 1.1 MB of wasm, 470 KB compressed). Retail compiles the UI out and is
@@ -27,8 +35,10 @@ about 60 KB, but shows only the clear color.
 ## Update the existing page
 
 Build the web configuration (Dev for the debug UI, Retail without), then
-upload the three files. The page is renamed; the `.js` and `.wasm` keep their
-names, because the page and the script refer to them.
+upload the files. The page is renamed; the `.js`, `.wasm` and `.data` keep
+their names, because the page and the script refer to them. For
+hello_scene, upload `hello_scene_webgpu.html` as `test_scene.html` and add
+`hello_scene_webgpu.data` to the second `scp`.
 
 ```powershell
 D:\Projects\pith\scripts\build.ps1 web -Config Dev
@@ -46,7 +56,10 @@ Check it (from the server itself, or any machine):
 ssh -i $key $server 'for p in /test_webgpu.html /hello_clear_webgpu.js /hello_clear_webgpu.wasm; do curl -s -o /dev/null -w "$p %{http_code} %{content_type}\n" https://wos-observer.com$p; done'
 ```
 
-Expect 200, with `application/wasm` for the `.wasm`.
+Expect 200, with `application/wasm` for the `.wasm`. A `.data` file comes
+without a content type, which is fine: the script reads it as bytes. Caddy
+compresses only text, JavaScript and wasm by default; the pack's RGB9E5 sky
+would shrink by only a quarter, so it goes uncompressed.
 
 ## Add another page
 
@@ -73,8 +86,12 @@ If many pages are coming, one `handle_path /pith/*` block serving
 
 ## Undo
 
-Restore `/etc/caddy/Caddyfile.before-pith-webgpu-20260930T114040Z`, run
-`systemctl reload caddy`, and delete `/srv/pith-web/`.
+- The scene page only: restore
+  `/etc/caddy/Caddyfile.before-pith-scene-20261001T043830Z`, run
+  `systemctl reload caddy`, and delete `test_scene.html` and
+  `hello_scene_webgpu.*` from `/srv/pith-web/`.
+- Everything: restore `/etc/caddy/Caddyfile.before-pith-webgpu-20260930T114040Z`,
+  run `systemctl reload caddy`, and delete `/srv/pith-web/`.
 
 ## Notes
 
