@@ -368,3 +368,127 @@ a menu. App IDs: 480 (Spacewar) for pith, 1096260 for Stella Nova.
     after each tick (`sim/protocol.h`). A skirmish starts the server in the
     client's process and flies through it. Open: UDP and
     `stellanova-server`, prediction of the own ship once there is delay.
+
+The developer's list of 2026-10-01 (evening), after flying with an Xbox pad
+and looking at the Deck:
+
+36. Done (Stella Nova ADR 0008; pith ADR 0027's addendum): combat v0 and the
+    Steam Deck's controls. The game: the left trigger thrusts, the left
+    bumper reverses at full power, the left stick only turns, the right
+    trigger fires (Space and a second finger too); 800 rocks in the sim,
+    sent in Welcome; ships bounce off them; shots are swept circles that
+    wear rocks down until they break; events (fired, hit, broken, bumped)
+    go to clients reliably, for sounds, sparks, debris and a camera shake;
+    protocol v2. pith: the Deck's controller read directly (hidraw), with
+    its back grips, quick access button and trackpads, Steam Input's
+    stand-in pad for it skipped and pads Steam takes ignored; pads have a
+    type and their own labels; `hello_input` draws the Deck's layout and
+    its trackpads as 3x3 zones. The canvas's runs of sprites share batches
+    (interleaving them with text took 320 KB of transient memory each).
+    Found: on Windows, Steam Input takes pads from apps running as app 480
+    (Spacewar's controls are Steam Input actions); `--platform none` keeps
+    them (questions.md).
+37. Done (pith ADR 0033): effects. pith draws unlit, blended triangles the
+    app builds each frame (`render/effects.h`: soft discs for particles,
+    soft strips for trails; billboards and ribbons facing the camera),
+    after the opaque scene. The game: flame from both engines while
+    thrusting (harder pulls burn longer, with flickering hot cores), cool
+    puffs at the nose while reversing, two trails behind the engines that
+    fade over a second, the shield (a geosphere) lit where a rock was hit
+    for half a second, and sparks where shots hit rocks.
+
+Next, the developer's list (2026-10-01, late evening):
+
+38. Done (pith ADR 0036, Stella Nova ADR 0010): the real network.
+    - pith: messages over datagrams (acknowledged, resent, cut into
+      fragments up to 1 MB, delivered in order); UDP with a handshake that
+      proves the client's address before the server keeps anything; a
+      WebSocket server behind a TLS proxy, and the browser's WebSocket on
+      the web; one server on several transports at once.
+    - `stellanova-server` (Linux): one co-op skirmish for whoever connects,
+      starting over when empty, idle while nobody plays. It runs on the
+      wos-observer.com machine as a sandboxed service.
+    - The menu's Online item flies there: native builds over UDP, the web
+      page over `wss://wos-observer.com/stellanova/ws`. Ships are drawn
+      100 ms behind the newest snapshot.
+    - Verified: Windows over UDP and Chrome on the deployed page join,
+      meet wave 1 and leave. Idle, the server uses 4 MB and 0.9% of a CPU.
+    - Open: predicting our own ship (about 0.2 s of input delay at the dev
+      PC's 91 ms round trip); a clearer message for a server of another
+      version.
+39. Retail builds sent to Steam by a script: a Windows x64 depot and a
+    SteamOS (Linux) depot, uploaded with SteamCMD and a build account.
+    Done (`scripts/steam-upload.ps1`, `docs/steam.md`): the license works
+    since 2026-10-02, and the first build (25669850) went up that morning.
+    It goes live on the default branch from Steamworks.
+
+The developer's list of 2026-10-01 (night), first: the Steam license (in
+Steamworks: the Developers group lacks StarIre's autogrant, see
+`questions.md`), then:
+
+40. Done (ADR 0009): enemy bots that fly and shoot. Ships have a shield
+    that comes back after a rest and a hull; shots hit ships of other
+    teams (no friendly fire); ships bump each other; a ship without health
+    is a wreck. `bots/` (`sn::bots`): pilots that fly the controls a player
+    would (attack runs aimed at where shots meet the target, breaking away
+    when close; around rocks; apart from their own team), with a skill.
+    The server sends waves (2 bots, one more each wave, up to 8), removes
+    their wrecks and brings players back after 3 s; `--autopilot` flies
+    the player's ship too. Protocol 3 (teams, health, shield, the wave,
+    who hit whom). The client: red enemy fighters with their own flames
+    and trails, shields lit where shots hit, sparks, smoke from damaged
+    hulls, explosions with debris, ships warping in; a HUD with shield,
+    hull, wave, enemies and kills, "Wave N", "Destroyed", bars over
+    damaged enemies and marks toward those off screen; the camera rises
+    in a fight. A minute on autopilot: 5 kills, 1 loss.
+41. Done (pith ADR 0034): pith against the Vulkan Guide's tile-based
+    rendering, common pitfalls and profiling pages.
+    - Already right: no attachment loads, depth never stored, exact barrier
+      stages, separate position streams, per-frame command pools.
+    - Fixed:
+      - a pipeline cache kept between runs: second starts make pipelines
+        7x faster on the dev PC;
+      - transient, lazily allocated depth (no memory on tilers);
+      - a narrower upload barrier;
+      - a write-after-write hazard in uploads, found by synchronization
+        validation, which the Vulkan smoke tests now run with;
+      - pipelines destroyed without an idle wait.
+    - Later, for a tile-based device to measure:
+      - the scene and output passes as two subpasses (about 2.5 GB/s
+        less on a phone at 60 Hz);
+      - a smaller scene format;
+      - fewer repeated binds.
+42. Done (pith ADR 0035): GPU tools.
+    - Object names for RenderDoc, PIX and Nsight on Vulkan and D3D12.
+    - Crash trails: D3D12's DRED and `VK_EXT_device_fault`.
+    - Captures from the app itself (`--gpu-tool renderdoc|pix`,
+      `--gpu-capture N`, `pith app gpu-capture`).
+    - `pith/scripts/gpu-capture.ps1`: a frame replayed by RenderDoc into a
+      CSV of every draw's GPU time, with its passes and slowest draws
+      printed.
+43. Done (pith ADR 0005's addendum; `docs/profiling.md`): profiling with
+    pith's own tools.
+    - GPU labels are timed. Captures carry a GPU track aligned with the
+      CPU's (calibrated timestamps). `--no-validation` for profiles.
+    - Web captures work: a stack overflow at shutdown had wiped them.
+    - The game, measured on autopilot through the first waves:
+      - Windows: 0.42 ms of CPU and 0.05 ms of GPU work in a 3.57 ms
+        frame; p99.9 4.04 ms.
+      - Chrome: 0.85 ms of CPU, most of it effects data copied to the GPU
+        and text laid out every frame.
+      - A first-wave hitch on the web is gone.
+
+The developer's list of 2026-10-02 (night):
+
+44. Done (pith ADR 0036's stats, `docs/profiling.md`): profiling the
+    network.
+    - pith counts every peer's, server's and client's traffic (packets,
+      bytes, messages, resends, round trip, queue), and records its rates
+      in captures.
+    - The server logs a stats line a minute, every second in debug mode
+      (SIGUSR1), with each message type's rate and size.
+    - The client's Network window (F1, Dev builds) shows the same from its
+      side, and how far behind the newest snapshot ships are drawn.
+    - Found and fixed: inputs went every frame, and every datagram got an
+      acknowledgment of its own: about 280 packets a second each way per
+      player at 280 Hz, now 70 in and 30 out.

@@ -4,6 +4,8 @@ ph_add_graphics_app(stellanova BACKEND ${PH_DEFAULT_BACKEND}
 	SOURCES
 		src/flight.cpp
 		src/flight.h
+		src/flight_effects.cpp
+		src/flight_effects.h
 		src/key_values.cpp
 		src/key_values.h
 		src/main.cpp
@@ -28,6 +30,13 @@ if(TARGET stellanova)
 		add_test(NAME stellanova_menu COMMAND stellanova --frames 30 --hidden --platform none --mute)
 		add_test(NAME stellanova_flight
 			COMMAND stellanova --frames 30 --hidden --platform none --mute --flight)
+		# Vulkan's validation with its synchronization checks (pith ADR 0034):
+		# any error it logs fails the smoke runs.
+		if(PH_DEFAULT_BACKEND STREQUAL "vulkan")
+			set_tests_properties(stellanova_menu stellanova_flight PROPERTIES
+				ENVIRONMENT "VK_LAYER_VALIDATE_SYNC=1"
+				FAIL_REGULAR_EXPRESSION " E vulkan: ")
+		endif()
 		# The menu against a reference picture (1280x720 at 100% scale), like
 		# pith's samples: copy a new screenshot over it when a change is meant.
 		ph_pith_tool(pith stellanova)

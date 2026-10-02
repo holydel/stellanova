@@ -47,6 +47,8 @@ public:
 	ph::Vec2 Text(const char* text, ph::f32 x, ph::f32 y, const TextLook& look);
 	ph::Vec2 Measure(const char* text, const TextLook& look);
 	void Box(ph::f32 x, ph::f32 y, ph::f32 w, ph::f32 h, ph::u32 color);
+	// A line `width` units wide from `a` to `b`.
+	void Line(ph::Vec2 a, ph::Vec2 b, ph::f32 width, ph::u32 color);
 
 private:
 	Resources* resources = nullptr;

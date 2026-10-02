@@ -2,6 +2,8 @@
 
 #include "resources.h"
 
+#include <cmath>
+
 namespace sn
 {
 using namespace ph;
@@ -51,5 +53,15 @@ void Ui::Box(f32 x, f32 y, f32 w, f32 h, u32 color)
 	const f32 halfW = 0.5f * w * scale;
 	const f32 halfH = 0.5f * h * scale;
 	render::DrawSprite({x * scale + halfW, -(y * scale + halfH)}, {halfW, halfH}, 0.0f, color);
+}
+
+void Ui::Line(Vec2 a, Vec2 b, f32 lineWidth, u32 color)
+{
+	// The canvas has y up; units have it down.
+	const f32 dx = (b.x - a.x) * scale;
+	const f32 dy = (a.y - b.y) * scale;
+	const f32 length = std::sqrt(dx * dx + dy * dy);
+	render::DrawSprite({0.5f * (a.x + b.x) * scale, -0.5f * (a.y + b.y) * scale},
+	                   {0.5f * length, 0.5f * lineWidth * scale}, std::atan2(dy, dx), color);
 }
 } // namespace sn

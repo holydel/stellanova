@@ -3,14 +3,19 @@
 #include "resources.h"
 
 #include <ph/core/log.h>
+#include <ph/core/profile.h>
+#include <ph/core/time.h>
+#include <ph/debug_ui/debug_ui.h>
 #include <ph/os/input.h>
 #include <ph/render/camera.h>
 #include <ph/render/frame.h>
 #include <ph/render/sky.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 namespace sn
 {
@@ -18,28 +23,75 @@ namespace
 {
 using namespace ph;
 using namespace ph::os;
+using render::PackColor;
 
 constexpr f32 CAMERA_HEIGHT = 40.0f; // m above the ship
-constexpr u32 ROCK_COUNT = 2000;
-constexpr f32 FIELD = 600.0f; // m: the rocks' square, around the start
+constexpr f32 COMBAT_HEIGHT = 54.0f; // with enemies near: more to see
+constexpr f32 COMBAT_REACH = 70.0f;  // m: enemies as near as this make a fight
+constexpr f32 FOV = 0.8f;            // radians, vertical
+// Rocks far below the plane of play, small and dark, so that they read as
+// the background: they only show how fast the ship goes.
+constexpr u32 SCENERY_COUNT = 350;
+constexpr f32 SCENERY_FIELD = 1000.0f; // m: their square, around the start
+constexpr f32 STICK_DEAD_ZONE = 0.15f;
+constexpr f32 TRIGGER_FIRES = 0.3f; // how far the right trigger goes before it fires
+constexpr f32 WAVE_BANNER = 2.5f;   // s a new wave's number shows
+constexpr f32 HINT_SECONDS = 10.0f; // s the controls show at the bottom, before they fade
+// Between inputs sent: at most about 70 a second (every frame at 60 Hz),
+// twice the server's ticks.
+constexpr u64 INPUT_INTERVAL_NS = 12'000'000;
 
 // The plane of play in the world: x is X, y is -Z (sim/world.h).
-Vec3 ToWorld(Vec2 p) { return {p.x, 0.0f, -p.y}; }
+Vec3 ToWorld(Vec2 p, f32 height = 0.0f) { return {p.x, height, -p.y}; }
 
-f32 WrapAngle(f32 angle)
-{
-	while (angle > PI)
-		angle -= 2.0f * PI;
-	while (angle < -PI)
-		angle += 2.0f * PI;
-	return angle;
-}
-
-// Steady pseudo-random numbers, so that the field looks the same each time.
+// Steady pseudo-random numbers, so that the looks are the same each time.
 f32 Random(u32& state)
 {
 	state = state * 1664525u + 1013904223u;
 	return f32(state >> 8) / f32(1u << 24);
+}
+
+// A stick's x without its middle: 0 inside the dead zone, then up to 1.
+f32 DeadZone(f32 x)
+{
+	const f32 size = std::fabs(x);
+	if (size <= STICK_DEAD_ZONE)
+		return 0.0f;
+	return std::copysign(std::min(1.0f, (size - STICK_DEAD_ZONE) / (1.0f - STICK_DEAD_ZONE)), x);
+}
+
+// Our side's ships burn orange and trail blue; the enemies' are red.
+ShipLook MakeLook(const assets::MeshBounds& bounds, f32 shieldRadius, bool enemy)
+{
+	ShipLook look;
+	look.bounds = bounds;
+	look.shieldRadius = shieldRadius;
+	if (enemy)
+	{
+		look.flameHot = PackColor(1.0f, 0.55f, 0.65f, 0.55f);
+		look.flameCold = PackColor(0.9f, 0.1f, 0.3f, 0.0f);
+		look.core = PackColor(1.0f, 0.85f, 0.9f, 0.85f);
+		look.trail = {1.0f, 0.3f, 0.3f};
+		look.shield = {1.0f, 0.45f, 0.35f};
+		look.flameRate = 0.5f; // many of them: lighter on particles
+	}
+	else
+	{
+		look.flameHot = PackColor(1.0f, 0.85f, 0.5f, 0.55f);
+		look.flameCold = PackColor(1.0f, 0.3f, 0.05f, 0.0f);
+		look.core = PackColor(1.0f, 0.95f, 0.8f, 0.85f);
+		look.trail = {0.45f, 0.8f, 1.0f};
+		look.shield = {0.45f, 0.85f, 1.0f};
+	}
+	return look;
+}
+
+// A bar of `share` (0-255) over a dark track; premultiplied colors.
+void Bar(Ui& ui, f32 x, f32 y, f32 w, f32 h, u8 share, Vec3 color)
+{
+	ui.Box(x, y, w, h, PackColor(0.02f, 0.03f, 0.05f, 0.6f));
+	if (share > 0)
+		ui.Box(x, y, w * f32(share) / 255.0f, h, PackColor(color.x, color.y, color.z, 1.0f));
 }
 } // namespace
 
@@ -48,26 +100,48 @@ void Flight::Enter(Resources& from, const char* address)
 	resources = &from;
 	client = net::Connect(address);
 	ship = 0;
-	latest = std::make_unique<sim::Snapshot>();
-	previous = std::make_unique<sim::Snapshot>();
+	team = sim::PLAYERS;
+	history.clear();
 	incoming = std::make_unique<sim::Snapshot>();
-	sinceSnapshot = 0.0f;
+	latest = nullptr;
+	renderTick = 0.0;
+	// A local server's snapshots come every tick, without fail; a distant
+	// one's unevenly: three ticks (100 ms) of them in hand smooth that out.
+	server = address;
+	delayTicks = server.rfind("loopback:", 0) == 0 ? 1.0f : 3.0f;
+	welcomed = false;
+	rocks.clear(); // the server's, in Welcome
+	pieces.clear();
+	present.clear();
+	effects.Reset();
+	ownLook = MakeLook(resources->shipBounds, resources->shieldRadius, false);
+	enemyLook = MakeLook(resources->enemyBounds, resources->enemyShieldRadius, true);
+	height = CAMERA_HEIGHT;
+	kills = 0;
+	wave = 0;
+	waveShown = WAVE_BANNER;
+	flown = 0.0f;
+	warmed = false;
+	downFor = -1.0f;
+	hurt = 0.0f;
+	shake = 0.0f;
+	sentCounts = {};
+	receivedCounts = {};
+	staleSnapshots = 0;
+	netView = {};
+	inputSentNs = 0;
 
-	rocks.clear();
+	scenery.clear();
 	u32 seed = 7;
-	for (u32 i = 0; i < ROCK_COUNT; ++i)
+	for (u32 i = 0; i < SCENERY_COUNT; ++i)
 	{
-		Rock rock;
-		rock.position = {(Random(seed) - 0.5f) * FIELD, -2.0f - 6.0f * Random(seed),
-		                 (Random(seed) - 0.5f) * FIELD};
-		const f32 size = 1.0f + 6.0f * Random(seed) * Random(seed);
-		rock.scale = {size * (0.8f + 0.4f * Random(seed)), size * (0.7f + 0.3f * Random(seed)),
-		              size * (0.8f + 0.4f * Random(seed))};
-		rock.spin = (Random(seed) - 0.5f) * 0.8f;
+		Scenery rock;
+		rock.position = {(Random(seed) - 0.5f) * SCENERY_FIELD, -120.0f - 130.0f * Random(seed),
+		                 (Random(seed) - 0.5f) * SCENERY_FIELD};
+		rock.size = 3.0f + 9.0f * Random(seed) * Random(seed);
+		rock.spin = (Random(seed) - 0.5f) * 0.6f;
 		rock.mesh = u32(Random(seed) * f32(ROCK_MESHES)) % ROCK_MESHES;
-		// The start stays clear.
-		if (std::abs(rock.position.x) > 12.0f || std::abs(rock.position.z) > 12.0f)
-			rocks.push_back(rock);
+		scenery.push_back(rock);
 	}
 
 	audio::PlayDesc desc;
@@ -81,9 +155,9 @@ void Flight::Leave()
 	audio::Stop(engine);
 	net::Close(client);
 	client = {};
-	latest.reset();
-	previous.reset();
+	history.clear();
 	incoming.reset();
+	latest = nullptr;
 }
 
 bool Flight::OnEvent(const Event& event)
@@ -100,23 +174,28 @@ sim::ShipControls Flight::ReadControls(PixelSize size) const
 {
 	const auto key = [](Scancode a, Scancode b)
 	{ return IsKeyDown(a) || IsKeyDown(b) ? 1.0f : 0.0f; };
+	sim::ShipControls controls;
 	f32 turn = key(Scancode::A, Scancode::Left) - key(Scancode::D, Scancode::Right);
 	f32 thrust = key(Scancode::W, Scancode::Up) - key(Scancode::S, Scancode::Down);
+	controls.fire = IsKeyDown(Scancode::Space);
 
+	// Pads: the left trigger thrusts (as far as it is pulled), the left
+	// bumper reverses at full power, the left stick only turns, and the
+	// right trigger fires.
 	GamepadState pads[MAX_GAMEPADS];
 	const u32 count = GetGamepads(pads, MAX_GAMEPADS);
 	for (u32 i = 0; i < count; ++i)
 	{
-		f32 x = pads[i].Axis(GamepadAxis::LeftX);
-		f32 y = pads[i].Axis(GamepadAxis::LeftY);
-		ApplyDeadZone(x, y);
-		turn -= x;
-		thrust +=
-			y + pads[i].Axis(GamepadAxis::RightTrigger) - pads[i].Axis(GamepadAxis::LeftTrigger);
+		turn -= DeadZone(pads[i].Axis(GamepadAxis::LeftX));
+		thrust += pads[i].Axis(GamepadAxis::LeftTrigger);
+		if (pads[i].IsDown(GamepadButton::LeftShoulder))
+			thrust -= 1.0f;
+		controls.fire = controls.fire || pads[i].Axis(GamepadAxis::RightTrigger) > TRIGGER_FIRES;
 	}
 
 	// A finger (or the held mouse) where the ship should go: the ship is in
-	// the middle of the screen, so the way there is from the middle.
+	// the middle of the screen, so the way there is from the middle. A
+	// second finger, or the right button, fires.
 	const MouseState mouse = GetMouseState();
 	if ((mouse.buttons & MouseButtonBit(MouseButton::Left)) && size.width > 0)
 	{
@@ -127,82 +206,426 @@ sim::ShipControls Flight::ReadControls(PixelSize size) const
 		{
 			const sim::ShipState* state = latest ? latest->Find(ship) : nullptr;
 			const f32 wanted = std::atan2(-dx, dy);
-			const f32 off = WrapAngle(wanted - (state ? state->angle : 0.0f));
+			const f32 off = sim::WrapAngle(wanted - (state ? state->angle : 0.0f));
 			turn += std::clamp(off * 2.5f, -1.0f, 1.0f);
 			thrust +=
 				std::abs(off) < 0.8f ? std::min(1.0f, distance / (0.3f * f32(size.height))) : 0.1f;
 		}
 	}
-	return {std::clamp(turn, -1.0f, 1.0f), std::clamp(thrust, -1.0f, 1.0f)};
+	controls.fire = controls.fire || (mouse.buttons & MouseButtonBit(MouseButton::Right)) != 0 ||
+	                GetTouches(nullptr, 0) >= 2;
+	controls.turn = std::clamp(turn, -1.0f, 1.0f);
+	controls.thrust = std::clamp(thrust, -1.0f, 1.0f);
+	return controls;
 }
 
 void Flight::SendControls(PixelSize size)
 {
 	if (!ship)
 		return;
-	// Every frame: unreliable, so the newest one wins.
-	sim::Input input;
-	input.tick = latest->tick;
-	input.controls = ReadControls(size);
-	const std::vector<u8> bytes = sim::Write(input);
-	net::Send(client, bytes.data(), u32(bytes.size()), net::Delivery::Unreliable);
-	const f32 push = std::abs(input.controls.thrust);
-	audio::SetVolume(engine, 0.15f + 0.55f * push);
+	const sim::ShipControls controls = ReadControls(size);
+	// Unreliable, so the newest one wins. Not every frame: the server takes
+	// the newest each tick, and fast frames would send far more (280 a
+	// second at 280 Hz) than it uses.
+	const u64 now = MonotonicNs();
+	if (now - inputSentNs >= INPUT_INTERVAL_NS)
+	{
+		sim::Input input;
+		input.tick = latest ? latest->tick : 0;
+		input.controls = controls;
+		const std::vector<u8> bytes = sim::Write(input);
+		if (net::Send(client, bytes.data(), u32(bytes.size()), net::Delivery::Unreliable))
+			sentCounts.Add(bytes.data(), bytes.size());
+		inputSentNs = now;
+	}
+	// The engine hums only while the ship flies.
+	const f32 push = downFor < 0.0f ? std::abs(controls.thrust) : 0.0f;
+	audio::SetVolume(engine, downFor < 0.0f ? 0.15f + 0.55f * push : 0.0f);
 	audio::SetPitch(engine, 0.8f + 0.3f * push);
 }
 
-bool Flight::Receive(f32 dt)
+bool Flight::Receive()
 {
-	sinceSnapshot += dt;
+	PH_PROFILE_SCOPE("Flight.Receive");
 	net::Event event;
 	while (net::Poll(client, event))
 	{
 		if (event.type == net::EventType::Connected)
 		{
 			const std::vector<u8> hello = sim::Write(sim::Hello{});
-			net::Send(client, hello.data(), u32(hello.size()), net::Delivery::Reliable);
+			if (net::Send(client, hello.data(), u32(hello.size()), net::Delivery::Reliable))
+				sentCounts.Add(hello.data(), hello.size());
+			continue;
 		}
-		else if (event.type == net::EventType::Disconnected)
+		if (event.type == net::EventType::Disconnected)
 		{
 			PH_LOG_WARN("flight: the server is gone");
 			return false;
 		}
-		else if (sim::TypeOf(event.data, event.size) == sim::MessageType::Welcome)
+		receivedCounts.Add(event.data, event.size);
+		switch (sim::TypeOf(event.data, event.size))
 		{
-			sim::Welcome welcome;
-			if (sim::Read(event.data, event.size, welcome))
-				ship = welcome.ship;
-		}
-		else if (sim::Read(event.data, event.size, *incoming))
-		{
-			// The newest becomes `latest`; the one before stays for drawing.
-			std::swap(previous, latest);
-			std::swap(latest, incoming);
-			if (!previous->Find(ship))
-				*previous = *latest; // the first: nothing to draw from yet
-			sinceSnapshot = 0.0f;
+			case sim::MessageType::Welcome:
+			{
+				sim::Welcome welcome;
+				if (sim::Read(event.data, event.size, welcome))
+					OnWelcome(welcome);
+				break;
+			}
+			case sim::MessageType::Events:
+			{
+				sim::Events events;
+				if (sim::Read(event.data, event.size, events))
+					OnEvents(events);
+				break;
+			}
+			case sim::MessageType::Snapshot:
+				if (!sim::Read(event.data, event.size, *incoming))
+					break;
+				// Late or doubled ones (UDP reorders) are dropped: the newer
+				// replaces them.
+				if (latest && incoming->tick <= latest->tick)
+					++staleSnapshots;
+				else
+				{
+					std::unique_ptr<sim::Snapshot> spare;
+					if (history.size() == HISTORY)
+					{
+						spare = std::move(history.front());
+						history.erase(history.begin());
+					}
+					history.push_back(std::move(incoming));
+					incoming = spare ? std::move(spare) : std::make_unique<sim::Snapshot>();
+					latest = history.back().get();
+					if (history.size() == 1)
+						renderTick = f64(latest->tick) - delayTicks;
+					OnSnapshot();
+				}
+				break;
+			default: break;
 		}
 	}
 	return true;
 }
 
+void Flight::DrawNetworkWindow()
+{
+#if PH_ENABLE_DEBUG_UI
+	if (!client)
+		return;
+	// Rates twice a second, from the counts.
+	const u64 now = MonotonicNs();
+	const net::TrafficStats traffic = net::GetClientStats(client);
+	NetView& view = netView;
+	if (!view.atNs || now - view.atNs >= 500'000'000)
+	{
+		if (view.atNs)
+		{
+			const f64 seconds = f64(now - view.atNs) * 1e-9;
+			view.rates = net::Rates(view.traffic, traffic, seconds);
+			for (u32 type = 0; type < sim::MessageCounts::TYPES; ++type)
+			{
+				view.sentPerSecond[type] =
+					f64(sentCounts.count[type] - view.sent.count[type]) / seconds;
+				view.receivedPerSecond[type] =
+					f64(receivedCounts.count[type] - view.received.count[type]) / seconds;
+			}
+			view.receivedKb[view.next] = f32(view.rates.bytesReceived / 1024.0);
+			view.next = (view.next + 1) % NetView::HISTORY;
+		}
+		view.atNs = now;
+		view.traffic = traffic;
+		view.sent = sentCounts;
+		view.received = receivedCounts;
+	}
+
+	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 16.0f, 16.0f),
+	                        ImGuiCond_FirstUseEver, ImVec2(1.0f, 0.0f));
+	ImGui::Begin("Network", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Text("%s%s", server.c_str(), welcomed ? "" : " (connecting)");
+	if (traffic.roundTripMs > 0.0f)
+		ImGui::Text("round trip %.0f ms", f64(traffic.roundTripMs));
+	else
+		ImGui::TextDisabled("round trip: not known here");
+	ImGui::Text("out %5.0f packets/s %6.1f KB/s", view.rates.packetsSent,
+	            view.rates.bytesSent / 1024.0);
+	ImGui::Text("in  %5.0f packets/s %6.1f KB/s", view.rates.packetsReceived,
+	            view.rates.bytesReceived / 1024.0);
+	ImGui::PlotLines("##in", view.receivedKb, int(NetView::HISTORY), int(view.next),
+	                 "KB/s in, the last minute", 0.0f, FLT_MAX, ImVec2(280.0f, 48.0f));
+	// Each message type one way: its rate, and its mean size.
+	for (u32 type = 0; type < sim::MessageCounts::TYPES; ++type)
+	{
+		const bool out = sentCounts.count[type] > 0;
+		const sim::MessageCounts& counts = out ? sentCounts : receivedCounts;
+		if (!counts.count[type])
+			continue;
+		ImGui::Text("%-8s %s %6.1f/s %5llu B", sim::MessageName(type), out ? "out" : "in ",
+		            out ? view.sentPerSecond[type] : view.receivedPerSecond[type],
+		            static_cast<unsigned long long>(counts.bytes[type] / counts.count[type]));
+	}
+	ImGui::Text("%llu fragments resent, %llu B queued",
+	            static_cast<unsigned long long>(traffic.resentFragments),
+	            static_cast<unsigned long long>(traffic.queuedBytes));
+	ImGui::Text("%.1f KB sent, %.1f KB received in all", f64(traffic.bytesSent) / 1024.0,
+	            f64(traffic.bytesReceived) / 1024.0);
+	// How far behind the newest snapshot ships are drawn, from how many.
+	if (latest)
+		ImGui::Text("drawn %.0f ms behind the newest of %u snapshots",
+		            (f64(latest->tick) - renderTick) * sim::TICK_SECONDS * 1000.0,
+		            u32(history.size()));
+	ImGui::Text("%u snapshots late or doubled, dropped", staleSnapshots);
+	ImGui::End();
+#endif
+}
+
+void Flight::OnWelcome(const sim::Welcome& welcome)
+{
+	ship = welcome.ship;
+	respawn = welcome.respawn;
+	welcomed = true;
+	rocks.clear();
+	u32 seed = 11;
+	for (const sim::Rock& from : welcome.rocks)
+	{
+		Rock rock;
+		rock.position = from.position;
+		rock.radius = from.radius;
+		rock.broken = from.health <= 0.0f;
+		rock.mesh = u32(Random(seed) * f32(ROCK_MESHES)) % ROCK_MESHES;
+		rock.height = 0.6f + 0.4f * Random(seed);
+		rock.spin = (Random(seed) - 0.5f) * 0.6f;
+		rock.phase = Random(seed) * 2.0f * PI;
+		rocks.push_back(rock);
+	}
+	PH_LOG_INFO("flight: ship %u in a field of %zu rocks", ship, rocks.size());
+}
+
+void Flight::OnSnapshot()
+{
+	if (const sim::ShipState* own = latest->Find(ship))
+		team = own->team;
+	// Ships that were not flying in the last snapshot have just arrived: a
+	// wave's bots, or ours, at the start and back from its wreck.
+	bool arrived = false;
+	Vec2 where = listener;
+	std::vector<u32> flying;
+	for (u32 i = 0; i < latest->count; ++i)
+	{
+		const sim::ShipState& state = latest->ships[i];
+		if (state.health == 0)
+			continue;
+		flying.push_back(state.id);
+		if (std::find(present.begin(), present.end(), state.id) != present.end())
+			continue;
+		effects.WarpIn(ToWorld(state.position, 0.3f),
+		               state.team == team ? ownLook.trail : enemyLook.trail);
+		arrived = true;
+		where = state.position;
+	}
+	present.swap(flying);
+	if (arrived)
+		PlayAt(resources->warp, 0.5f, where);
+	if (latest->wave != wave)
+	{
+		wave = latest->wave;
+		waveShown = 0.0f;
+	}
+}
+
+u8 Flight::TeamOf(u32 id) const
+{
+	const sim::ShipState* state = latest ? latest->Find(id) : nullptr;
+	return state ? state->team : sim::BOTS;
+}
+
+void Flight::OnEvents(const sim::Events& events)
+{
+	for (const sim::EventState& event : events.events)
+	{
+		const bool ours = event.ship == ship;
+		// The shield lights up on the side that was hit.
+		const auto light = [&](f32 strength)
+		{
+			if (const sim::ShipState* state = latest ? latest->Find(event.ship) : nullptr)
+				effects.Bump(event.ship, ToWorld(event.position) - ToWorld(state->position),
+				             strength);
+		};
+		switch (event.type)
+		{
+			case sim::EventType::Fired:
+				if (ours)
+					resources->PlayEffect(resources->fire, 0.3f);
+				else
+					PlayAt(TeamOf(event.ship) == team ? resources->fire : resources->enemyFire,
+					       0.3f, event.position);
+				break;
+			case sim::EventType::RockHit:
+				effects.Sparks(ToWorld(event.position, 0.3f));
+				PlayAt(resources->hit, 0.3f, event.position);
+				break;
+			case sim::EventType::RockBroken:
+				if (event.rock < rocks.size())
+				{
+					Rock& rock = rocks[event.rock];
+					rock.broken = true;
+					Burst(rock.position, 5 + u32(rock.radius * 1.5f), 0.3f * rock.radius,
+					      5.0f + rock.radius, false);
+				}
+				PlayAt(resources->explode, std::min(1.0f, 0.4f + 0.08f * event.strength),
+				       event.position);
+				break;
+			case sim::EventType::ShipBumped:
+				light(event.strength);
+				if (!ours)
+					break;
+				shake = std::min(1.0f, shake + event.strength / 20.0f);
+				resources->PlayEffect(resources->bump, std::min(1.0f, event.strength / 15.0f));
+				break;
+			case sim::EventType::ShieldHit:
+				light(8.0f);
+				if (ours)
+				{
+					shake = std::min(1.0f, shake + 0.12f);
+					resources->PlayEffect(resources->shieldHit, 0.5f);
+				}
+				else
+					PlayAt(resources->shieldHit, 0.35f, event.position);
+				break;
+			case sim::EventType::HullHit:
+				effects.Sparks(ToWorld(event.position, 0.3f), 6);
+				if (ours)
+				{
+					shake = std::min(1.0f, shake + 0.35f);
+					hurt = 1.0f;
+					resources->PlayEffect(resources->hullHit, 0.7f);
+				}
+				else
+					PlayAt(resources->hullHit, 0.45f, event.position);
+				break;
+			case sim::EventType::ShipDestroyed:
+				effects.Explosion(ToWorld(event.position, 0.3f), std::max(1.0f, event.strength));
+				Burst(event.position, 10, 0.35f, 9.0f, true);
+				PlayAt(resources->blast, ours ? 1.0f : 0.8f, event.position);
+				if (ours)
+				{
+					downFor = 0.0f;
+					shake = 1.0f;
+				}
+				else if (event.other == ship)
+					++kills;
+				break;
+		}
+	}
+}
+
+void Flight::Burst(Vec2 at, u32 count, f32 size, f32 speed, bool metal)
+{
+	for (u32 i = 0; i < count; ++i)
+	{
+		const f32 angle = Random(random) * 2.0f * PI;
+		const f32 pace = speed * (0.4f + 0.6f * Random(random));
+		Piece piece;
+		piece.position = ToWorld(at, (Random(random) - 0.5f) * size);
+		piece.velocity = {std::cos(angle) * pace, (Random(random) - 0.3f) * 0.5f * pace,
+		                  std::sin(angle) * pace};
+		piece.size = size * (0.5f + Random(random));
+		piece.spin = (Random(random) - 0.5f) * 8.0f;
+		piece.lifetime = 0.9f + 0.6f * Random(random);
+		piece.life = piece.lifetime;
+		piece.mesh = u32(Random(random) * f32(ROCK_MESHES)) % ROCK_MESHES;
+		piece.metal = metal;
+		pieces.push_back(piece);
+	}
+}
+
+void Flight::PlayAt(audio::Sound sound, f32 volume, Vec2 at) const
+{
+	const Vec2 off = at - listener;
+	resources->PlayEffect(sound, volume / (1.0f + sim::Length(off) / 30.0f),
+	                      std::clamp(off.x / 40.0f, -1.0f, 1.0f));
+}
+
+// Each part is a CPU scope and a GPU label: both show in pith's profile
+// captures (and the labels in RenderDoc, PIX and Nsight).
 void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui& ui)
 {
-	if (!latest)
-		return;
-	const sim::ShipState* now = latest->Find(ship);
-	const sim::ShipState* before = previous->Find(ship);
-	if (!now || !before)
+	PH_PROFILE_SCOPE("Flight.Draw");
+	const f32 dt = f32(time.delta);
+	const f32 t = f32(time.seconds);
+	if (!latest || !latest->Find(ship))
+	{
+		DrawConnecting(commands, time, ui);
 		return; // not in the game yet
-	const f32 alpha = std::min(sinceSnapshot / sim::TICK_SECONDS, 1.0f);
-	const Vec2 position = before->position + (now->position - before->position) * alpha;
-	const f32 angle = before->angle + WrapAngle(now->angle - before->angle) * alpha;
+	}
 
-	// From above, screen up along the plane's y (-Z).
+	// The tick drawn: behind the newest snapshot by the delay, moving with
+	// the frame's time, pulled gently back to the delay as snapshots come.
+	renderTick += f64(dt) * sim::TICK_RATE;
+	const f64 target = f64(latest->tick) - delayTicks;
+	if (std::abs(renderTick - target) > 4.0)
+		renderTick = target;
+	else
+		renderTick += (target - renderTick) * std::min(1.0, f64(dt) * 2.0);
+	// The two snapshots around it: the newest alone past them.
+	const sim::Snapshot* from = history.front().get();
+	const sim::Snapshot* to = from;
+	for (usize i = 0; i < history.size(); ++i)
+	{
+		if (f64(history[i]->tick) > renderTick)
+		{
+			to = history[i].get();
+			break;
+		}
+		from = to = history[i].get();
+	}
+	const f32 alpha =
+		to->tick > from->tick
+	        ? std::clamp(f32((renderTick - f64(from->tick)) / f64(to->tick - from->tick)), 0.0f,
+	                     1.0f)
+	        : 0.0f;
+	const sim::ShipState* now = to->Find(ship);
+	if (!now)
+		now = latest->Find(ship);
+	if (now->health > 0)
+		downFor = -1.0f;
+	else
+		downFor = std::max(downFor, 0.0f) + dt;
+
+	// Between the two; from the newer alone for a ship that just arrived.
+	const auto pose = [&](const sim::ShipState& state, Vec2& position, f32& angle)
+	{
+		const sim::ShipState* before = from->Find(state.id);
+		if (!before || before->health == 0 || from == to)
+		{
+			position = state.position;
+			angle = state.angle;
+			return;
+		}
+		position = before->position + (state.position - before->position) * alpha;
+		angle = before->angle + sim::WrapAngle(state.angle - before->angle) * alpha;
+	};
+	Vec2 position;
+	f32 angle = 0.0f;
+	pose(*now, position, angle);
+
+	// From above, screen up along the plane's y (-Z), higher while enemies
+	// are near; a bump shakes it.
+	bool fighting = false;
+	for (u32 i = 0; i < to->count; ++i)
+	{
+		const sim::ShipState& other = to->ships[i];
+		fighting |= other.team != team && other.health > 0 &&
+		            sim::Length(other.position - now->position) < COMBAT_REACH;
+	}
+	height += ((fighting ? COMBAT_HEIGHT : CAMERA_HEIGHT) - height) * std::min(1.0f, 1.2f * dt);
+	listener = position;
 	const Vec3 center = ToWorld(position);
-	const Vec3 eye = {center.x, CAMERA_HEIGHT, center.z};
-	const Mat4 view = LookAt(eye, center, {0.0f, 0.0f, -1.0f});
-	render::FrameData frame = render::MakeFrameData3D(commands, time, view, eye, 0.8f);
+	shake = std::max(0.0f, shake - 3.0f * dt);
+	const Vec3 jolt = {(Random(random) - 0.5f) * shake, 0.0f, (Random(random) - 0.5f) * shake};
+	eye = Vec3{center.x, height, center.z} + jolt;
+	const Mat4 view = LookAt(eye, center + jolt, {0.0f, 0.0f, -1.0f});
+	render::FrameData frame = render::MakeFrameData3D(commands, time, view, eye, FOV);
 	// A low sun from the upper left: shapes read better than under one from
 	// straight above.
 	constexpr f32 SUN_HEIGHT = 0.55f; // radians above the plane
@@ -212,37 +635,314 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 	frame.sunDirection[2] = std::cos(SUN_HEIGHT) * std::cos(SUN_YAW);
 	render::SetFrameData(commands, frame);
 
-	// Banked into turns, a little.
-	const f32 bank = -0.5f * now->controls.turn;
-	resources->DrawShip(commands, Translation(center) * RotationY(angle) * RotationZ(bank));
-	const f32 t = f32(time.seconds);
-	for (const Rock& rock : rocks)
+	// What the camera sees of the plane, and of the scenery below it.
+	const f32 aspect =
+		commands.size.height > 0 ? f32(commands.size.width) / f32(commands.size.height) : 1.0f;
+	const f32 reach = std::tan(0.5f * FOV);
+	const auto seen = [&](Vec3 at, f32 depth, f32 radius)
 	{
-		// Only what can be on screen.
-		if (std::abs(rock.position.x - center.x) > 80.0f ||
-		    std::abs(rock.position.z - center.z) > 50.0f)
-			continue;
-		render::DrawMesh(commands, resources->rocks[rock.mesh], resources->rockMaterial,
-		                 Translation(rock.position) * RotationY(rock.spin * t) *
-		                     RotationX(0.7f * rock.spin * t) * Scale(rock.scale));
+		return std::abs(at.x - center.x) <= reach * aspect * depth + radius &&
+		       std::abs(at.z - center.z) <= reach * depth + radius;
+	};
+
+	// Ships, banked into turns a little; ours and our side's as they are,
+	// the enemies' red. Wrecks have broken apart already.
+	effects.Begin(dt);
+	marks.clear();
+	{
+		PH_PROFILE_SCOPE("Flight.Ships");
+		rhi::DebugLabelScope label(commands, "ships");
+		for (u32 i = 0; i < to->count; ++i)
+		{
+			const sim::ShipState& state = to->ships[i];
+			if (state.health == 0)
+				continue;
+			Vec2 at;
+			f32 heading = 0.0f;
+			pose(state, at, heading);
+			const bool enemy = state.team != team;
+			if (enemy)
+				marks.push_back({at, state.health, state.shield});
+			const Mat4 model = Translation(ToWorld(at)) * RotationY(heading) *
+			                   RotationZ(-0.5f * state.controls.turn);
+			if (seen(ToWorld(at), height, 4.0f))
+				render::DrawMesh(commands, enemy ? resources->enemy : resources->ship,
+				                 enemy ? resources->enemyMaterial : resources->material, model);
+			effects.Ship(state.id, enemy ? enemyLook : ownLook, model,
+			             Vec3{state.velocity.x, 0.0f, -state.velocity.y}, state.controls.thrust,
+			             1.0f - f32(state.health) / 255.0f);
+		}
+	}
+
+	{
+		PH_PROFILE_SCOPE("Flight.Rocks");
+		rhi::DebugLabelScope label(commands, "rocks");
+		for (const Rock& rock : rocks)
+		{
+			const Vec3 at = ToWorld(rock.position);
+			if (rock.broken || !seen(at, height, rock.radius))
+				continue;
+			const f32 scale = rock.radius / resources->rockExtents[rock.mesh];
+			render::DrawMesh(commands, resources->rocks[rock.mesh], resources->rockMaterial,
+			                 Translation(at) * RotationY(rock.phase + rock.spin * t) *
+			                     Scale({scale, scale * rock.height, scale}));
+		}
+	}
+	{
+		PH_PROFILE_SCOPE("Flight.Scenery");
+		rhi::DebugLabelScope label(commands, "scenery");
+		for (const Scenery& rock : scenery)
+		{
+			if (!seen(rock.position, height - rock.position.y, rock.size))
+				continue;
+			const f32 scale = rock.size / resources->rockExtents[rock.mesh];
+			render::DrawMesh(commands, resources->rocks[rock.mesh], resources->sceneryMaterial,
+			                 Translation(rock.position) * RotationY(rock.spin * t) *
+			                     RotationX(0.7f * rock.spin * t) * Scale({scale, scale, scale}));
+		}
+	}
+
+	// Shots, where they are at the tick drawn, stretched along their way;
+	// ours orange, the enemies' red.
+	const f32 since = f32((renderTick - f64(to->tick)) * sim::TICK_SECONDS);
+	{
+		PH_PROFILE_SCOPE("Flight.Shots");
+		rhi::DebugLabelScope label(commands, "shots and pieces");
+		for (u32 i = 0; i < to->shotCount; ++i)
+		{
+			const sim::ShotState& shot = to->shots[i];
+			const Vec2 at = shot.position + shot.velocity * since;
+			const f32 heading = std::atan2(-shot.velocity.x, shot.velocity.y);
+			render::DrawMesh(
+				commands, resources->bolt,
+				shot.team == team ? resources->boltMaterial : resources->enemyBoltMaterial,
+				Translation(ToWorld(at, 0.3f)) * RotationY(heading) * Scale({0.22f, 0.22f, 2.4f}));
+		}
+
+		// Pieces of broken rocks and ships fly, slow down and shrink away.
+		for (Piece& piece : pieces)
+		{
+			piece.life -= dt;
+			piece.position = piece.position + piece.velocity * dt;
+			piece.velocity = piece.velocity * std::max(0.0f, 1.0f - 0.8f * dt);
+		}
+		pieces.erase(std::remove_if(pieces.begin(), pieces.end(),
+		                            [](const Piece& piece) { return piece.life <= 0.0f; }),
+		             pieces.end());
+		for (const Piece& piece : pieces)
+		{
+			const f32 left = piece.life / piece.lifetime;
+			const f32 size = piece.size * std::min(1.0f, left * 3.0f);
+			const Mat4 turn = Translation(piece.position) * RotationY(piece.spin * t) *
+			                  RotationX(0.6f * piece.spin * t);
+			if (piece.metal)
+				render::DrawMesh(commands, resources->bolt, resources->debrisMaterial,
+				                 turn * Scale({size, 0.6f * size, 1.4f * size}));
+			else
+			{
+				const f32 scale = size / resources->rockExtents[piece.mesh];
+				render::DrawMesh(commands, resources->rocks[piece.mesh], resources->rockMaterial,
+				                 turn * Scale({scale, scale, scale}));
+			}
+		}
 	}
 	if (resources->sky)
+	{
+		rhi::DebugLabelScope label(commands, "sky");
 		render::DrawSky(commands, resources->sky, frame, 1.0f);
+	}
+	// Glows last: they blend over the scene and the sky.
+	{
+		PH_PROFILE_SCOPE("Flight.Effects");
+		rhi::DebugLabelScope label(commands, "effects");
+		effects.Draw(commands, *resources, render::GetCameraAxes(view));
+	}
 
+	PH_PROFILE_SCOPE("Flight.Hud");
+	rhi::DebugLabelScope label(commands, "hud");
+	ui.Begin(commands, time, *resources);
+	if (!warmed)
+		WarmHud(ui);
+	DrawHud(ui, *now, dt);
+	ui.End(commands);
+}
+
+void Flight::DrawConnecting(rhi::CommandList& commands, const render::FrameTime& time, Ui& ui)
+{
+	if (server.rfind("loopback:", 0) == 0)
+		return; // a frame or two at most
+	// The server's name alone: wos-observer.com, 127.0.0.1.
+	std::string name = server;
+	for (const char* scheme : {"udp:", "wss://", "ws://"})
+	{
+		if (name.rfind(scheme, 0) == 0)
+			name = name.substr(std::strlen(scheme));
+	}
+	name = name.substr(0, std::min(name.find(':'), name.find('/')));
 	ui.Begin(commands, time, *resources);
 	TextLook look;
-	look.size = 22.0f;
-	look.color = render::PackColor(0.85f, 0.9f, 1.0f);
-	const f32 speed =
-		std::sqrt(now->velocity.x * now->velocity.x + now->velocity.y * now->velocity.y);
-	char number[16];
-	std::snprintf(number, sizeof(number), "%.0f", speed);
-	ui.Text(resources->strings.Format("flight.speed", number).c_str(), 32.0f, 28.0f, look);
-	look.size = 16.0f;
-	look.color = render::PackColor(0.45f, 0.5f, 0.6f);
-	look.maxWidth = ui.Width() - 64.0f;
-	const char* hint = resources->strings.Get("flight.hint");
-	ui.Text(hint, 32.0f, Ui::HEIGHT - 28.0f - ui.Measure(hint, look).y, look);
+	look.size = 24.0f;
+	look.align = Align::Center;
+	look.color = PackColor(0.6f, 0.68f, 0.8f);
+	ui.Text(resources->strings.Format("flight.connecting", name.c_str()).c_str(), 0.5f * ui.Width(),
+	        340.0f, look);
 	ui.End(commands);
+}
+
+void Flight::WarmHud(Ui& ui)
+{
+	PH_PROFILE_SCOPE("Flight.WarmHud");
+	warmed = true;
+	StringTable& strings = resources->strings;
+	TextLook look;
+	look.size = 22.0f;
+	ui.Measure(strings.Format("flight.speed", "0123456789").c_str(), look);
+	ui.Measure(strings.Format("flight.back", "0123456789").c_str(), look);
+	look.size = 18.0f;
+	ui.Measure(strings.Format("flight.enemies", "0123456789").c_str(), look);
+	ui.Measure(strings.Format("flight.kills", "0123456789").c_str(), look);
+	look.size = 14.0f;
+	ui.Measure(strings.Get("flight.shield"), look);
+	ui.Measure(strings.Get("flight.hull"), look);
+	TextLook bold;
+	bold.bold = true;
+	bold.size = 56.0f;
+	ui.Measure(strings.Format("flight.wave", "0123456789").c_str(), bold);
+	bold.size = 52.0f;
+	ui.Measure(strings.Get("flight.destroyed"), bold);
+}
+
+void Flight::DrawHud(Ui& ui, const sim::ShipState& own, f32 dt)
+{
+	const f32 width = ui.Width();
+	StringTable& strings = resources->strings;
+	char number[16];
+
+	// Red at the screen's edges after a hull hit, fading.
+	hurt = std::max(0.0f, hurt - 2.0f * dt);
+	if (hurt > 0.0f)
+	{
+		constexpr f32 BAND = 14.0f;
+		for (u32 band = 0; band < 5; ++band)
+		{
+			const f32 a = hurt * 0.3f * (1.0f - f32(band) / 5.0f);
+			const u32 red = PackColor(0.55f * a, 0.03f * a, 0.02f * a, a);
+			const f32 in = BAND * f32(band);
+			ui.Box(in, in, width - 2.0f * in, BAND, red);
+			ui.Box(in, Ui::HEIGHT - in - BAND, width - 2.0f * in, BAND, red);
+			ui.Box(in, in + BAND, BAND, Ui::HEIGHT - 2.0f * (in + BAND), red);
+			ui.Box(width - in - BAND, in + BAND, BAND, Ui::HEIGHT - 2.0f * (in + BAND), red);
+		}
+	}
+
+	// Enemies: a bar over the damaged ones on screen, a mark at the edge
+	// toward the others.
+	const f32 perMeter = 0.5f * Ui::HEIGHT / (height * std::tan(0.5f * FOV));
+	const Vec2 middle = {0.5f * width, 0.5f * Ui::HEIGHT};
+	const u32 hostile = PackColor(1.0f, 0.3f, 0.25f, 0.9f);
+	u32 enemies = 0;
+	for (const Mark& mark : marks)
+	{
+		++enemies;
+		const Vec2 at = {middle.x + (mark.position.x - eye.x) * perMeter,
+		                 middle.y + (-mark.position.y - eye.z) * perMeter};
+		const Vec2 off = at - middle;
+		constexpr f32 EDGE = 36.0f; // units inside the screen's edge
+		if (std::abs(off.x) < middle.x - 8.0f && std::abs(off.y) < middle.y - 8.0f)
+		{
+			if (mark.health == 255 && mark.shield == 255)
+				continue;
+			const f32 barWidth = 40.0f;
+			const f32 top = at.y - 2.4f * perMeter - 8.0f;
+			Bar(ui, at.x - 0.5f * barWidth, top, barWidth, 3.0f, mark.shield, {1.0f, 0.55f, 0.45f});
+			Bar(ui, at.x - 0.5f * barWidth, top + 4.0f, barWidth, 3.0f, mark.health,
+			    {0.95f, 0.2f, 0.15f});
+			continue;
+		}
+		const f32 scale =
+			std::min(std::abs(off.x) > 1e-3f ? (middle.x - EDGE) / std::abs(off.x) : 1e9f,
+			         std::abs(off.y) > 1e-3f ? (middle.y - EDGE) / std::abs(off.y) : 1e9f);
+		const Vec2 tip = middle + off * scale;
+		const f32 length = sim::Length(off);
+		const Vec2 way = off * (1.0f / length);
+		const Vec2 across = {-way.y, way.x};
+		constexpr f32 SIZE = 16.0f;
+		ui.Line(tip, tip - way * SIZE + across * (0.6f * SIZE), 4.0f, hostile);
+		ui.Line(tip, tip - way * SIZE - across * (0.6f * SIZE), 4.0f, hostile);
+	}
+
+	// Our speed, shield and hull.
+	TextLook look;
+	look.size = 22.0f;
+	look.color = PackColor(0.85f, 0.9f, 1.0f);
+	const f32 speed = sim::Length(own.velocity);
+	std::snprintf(number, sizeof(number), "%.0f", speed);
+	ui.Text(strings.Format("flight.speed", number).c_str(), 32.0f, 28.0f, look);
+	TextLook label;
+	label.size = 14.0f;
+	label.color = PackColor(0.55f, 0.6f, 0.7f);
+	Bar(ui, 32.0f, 64.0f, 220.0f, 7.0f, own.shield, {0.35f, 0.75f, 1.0f});
+	ui.Text(strings.Get("flight.shield"), 262.0f, 58.0f, label);
+	Bar(ui, 32.0f, 80.0f, 220.0f, 7.0f, own.health, {1.0f, 0.55f, 0.2f});
+	ui.Text(strings.Get("flight.hull"), 262.0f, 74.0f, label);
+
+	// The wave, the enemies left, and our kills.
+	look.align = Align::Right;
+	TextLook small = look;
+	small.size = 18.0f;
+	if (wave > 0)
+	{
+		std::snprintf(number, sizeof(number), "%u", wave);
+		ui.Text(strings.Format("flight.wave", number).c_str(), width - 32.0f, 28.0f, look);
+		std::snprintf(number, sizeof(number), "%u", enemies);
+		ui.Text(strings.Format("flight.enemies", number).c_str(), width - 32.0f, 60.0f, small);
+	}
+	std::snprintf(number, sizeof(number), "%u", kills);
+	ui.Text(strings.Format("flight.kills", number).c_str(), width - 32.0f, 86.0f, small);
+
+	// A new wave's number, big for a moment.
+	waveShown += dt;
+	if (wave > 0 && waveShown < WAVE_BANNER)
+	{
+		const f32 fade = std::min({1.0f, waveShown / 0.25f, (WAVE_BANNER - waveShown) / 0.6f});
+		TextLook banner;
+		banner.size = 56.0f;
+		banner.bold = true;
+		banner.align = Align::Center;
+		banner.color = PackColor(1.0f, 0.55f, 0.45f, fade);
+		banner.glow = 0.25f;
+		banner.glowColor = PackColor(0.8f, 0.1f, 0.05f, 0.6f * fade);
+		std::snprintf(number, sizeof(number), "%u", wave);
+		ui.Text(strings.Format("flight.wave", number).c_str(), middle.x, 150.0f, banner);
+	}
+
+	// Our ship broke apart: when it comes back.
+	if (downFor >= 0.0f)
+	{
+		TextLook down;
+		down.size = 52.0f;
+		down.bold = true;
+		down.align = Align::Center;
+		down.color = PackColor(1.0f, 0.45f, 0.35f);
+		down.glow = 0.2f;
+		down.glowColor = PackColor(0.6f, 0.05f, 0.02f, 0.6f);
+		ui.Text(strings.Get("flight.destroyed"), middle.x, 250.0f, down);
+		std::snprintf(number, sizeof(number), "%.0f", std::ceil(std::max(0.0f, respawn - downFor)));
+		look.align = Align::Center;
+		ui.Text(strings.Format("flight.back", number).c_str(), middle.x, 320.0f, look);
+	}
+
+	// The controls, for the first seconds of a flight.
+	flown += dt;
+	const f32 hintFade = std::clamp((HINT_SECONDS - flown) / 2.0f, 0.0f, 1.0f);
+	if (hintFade > 0.0f)
+	{
+		TextLook hintLook;
+		hintLook.size = 16.0f;
+		hintLook.color = PackColor(0.45f, 0.5f, 0.6f, hintFade);
+		hintLook.maxWidth = width - 64.0f;
+		const char* hint = strings.Get("flight.hint");
+		ui.Text(hint, 32.0f, Ui::HEIGHT - 28.0f - ui.Measure(hint, hintLook).y, hintLook);
+	}
 }
 } // namespace sn

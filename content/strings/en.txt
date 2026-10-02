@@ -4,6 +4,9 @@
 game.title = Stella Nova
 menu.subtitle = A war among the stars
 menu.skirmish = Skirmish
+menu.online = Online
+menu.unreachable = The server did not answer
+menu.server_gone = The server went away
 menu.settings = Settings
 menu.credits = Credits
 menu.quit = Quit
@@ -24,4 +27,12 @@ credits.sounds = Models and sounds: Kenney (www.kenney.nl)
 credits.engine = Made with pith
 
 flight.speed = Speed: {} m/s
-flight.hint = W A S D or the left stick to fly; or hold a finger where to go. Esc: the menu
+flight.shield = Shield
+flight.hull = Hull
+flight.wave = Wave {}
+flight.enemies = Enemies: {}
+flight.kills = Kills: {}
+flight.destroyed = Destroyed
+flight.back = Back in {} s
+flight.connecting = Connecting to {}
+flight.hint = Pad: left trigger thrust, left bumper reverse, left stick turn, right trigger fire. Keys: W S A D, Space to fire. Touch: hold a finger where to go, tap another to fire. Esc: the menu

@@ -6,3 +6,5 @@ CMakeUserPresets.json
 
 # Your own content files (content/README.md): never committed.
 /content/local/
+stellanova.vkpipelines
+devlink.png

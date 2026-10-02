@@ -6,9 +6,9 @@
 #include <ph/os/event.h>
 #include <ph/os/window.h>
 
-// The main menu (Skirmish, Settings, Credits, Quit), the settings page and
-// the credits, over a ship turning in the starfield. Keys, a gamepad, the
-// mouse or a finger.
+// The main menu (Skirmish, Online, Settings, Credits, Quit), the settings
+// page and the credits, over a ship turning in the starfield. Keys, a
+// gamepad, the mouse or a finger.
 namespace sn
 {
 struct Resources;
@@ -20,11 +20,15 @@ public:
 	enum class Action : ph::u8
 	{
 		None,
-		Play,
+		Play,       // a skirmish on this machine
+		PlayOnline, // the skirmish on the game's server
 		Quit,
 	};
 
 	void Enter(Resources& resources, Settings& settings, ph::os::WindowId window);
+	// A line under the title for a while, by its string's key ("" for none):
+	// why the last online game ended.
+	void Notice(const char* key);
 	void Leave();
 	Action OnEvent(const ph::os::Event& event);
 	Action Update(ph::f32 dt);
@@ -63,6 +67,8 @@ private:
 	// A stick held to one side repeats, slowly then faster.
 	int stickStep = 0;
 	ph::f32 stickRepeat = 0.0f;
+	const char* notice = "";
+	ph::f32 noticeLeft = 0.0f; // s
 	ph::audio::Voice ambience;
 };
 } // namespace sn

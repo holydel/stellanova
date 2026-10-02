@@ -4,6 +4,7 @@
 		{"name": "sans_bold", "font": "source:noto_sans_bold", "atlas": {"charsets": ["ascii"], "pageSize": 512}},
 		{"name": "sky", "cubemap": "source:starmap", "size": 512},
 		{"name": "ship", "mesh": "source:kenney_space/Models/GLTF format/craft_speederA.glb", "center": true, "scale": 1.5},
+		{"name": "enemy", "mesh": "source:kenney_space/Models/GLTF format/craft_speederD.glb", "center": true, "scale": 1.5},
 		{"name": "rock_a", "mesh": "source:kenney_space/Models/GLTF format/meteor_detailed.glb", "center": true},
 		{"name": "rock_b", "mesh": "source:kenney_space/Models/GLTF format/rock_largeA.glb", "center": true},
 		{"name": "rock_c", "mesh": "source:kenney_space/Models/GLTF format/meteor.glb", "center": true},
@@ -12,6 +13,15 @@
 		{"name": "ui_confirm", "file": "source:kenney_scifi/Audio/forceField_001.ogg"},
 		{"name": "ui_back", "file": "source:kenney_scifi/Audio/doorClose_000.ogg"},
 		{"name": "ambience", "file": "source:kenney_scifi/Audio/spaceEngineLow_000.ogg"},
-		{"name": "thruster", "file": "source:kenney_scifi/Audio/thrusterFire_000.ogg"}
+		{"name": "thruster", "file": "source:kenney_scifi/Audio/thrusterFire_000.ogg"},
+		{"name": "fire", "file": "source:kenney_scifi/Audio/laserSmall_001.ogg"},
+		{"name": "hit", "file": "source:kenney_scifi/Audio/impactMetal_002.ogg"},
+		{"name": "explode", "file": "source:kenney_scifi/Audio/explosionCrunch_002.ogg"},
+		{"name": "bump", "file": "source:kenney_scifi/Audio/impactMetal_000.ogg"},
+		{"name": "enemy_fire", "file": "source:kenney_scifi/Audio/laserRetro_002.ogg"},
+		{"name": "shield_hit", "file": "source:kenney_scifi/Audio/forceField_003.ogg"},
+		{"name": "hull_hit", "file": "source:kenney_scifi/Audio/impactMetal_003.ogg"},
+		{"name": "blast", "file": "source:kenney_scifi/Audio/lowFrequency_explosion_000.ogg"},
+		{"name": "warp", "file": "source:kenney_scifi/Audio/forceField_000.ogg"}
 	]
 }

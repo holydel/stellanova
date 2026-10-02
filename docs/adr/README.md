@@ -14,3 +14,6 @@ Engine decisions live in `../pith/docs/adr/`.
 | 0005 | [Backend services: brainCloud behind our own interface](0005-backend-services.md) | Proposed |
 | 0006 | [The client: pith's shell, screens, text from string tables](0006-client-structure.md) | Proposed |
 | 0007 | [The local server: the same server code over loopback](0007-local-server.md) | Proposed |
+| 0008 | [Combat v0: circles, a gun, an asteroid field in the sim](0008-combat-v0.md) | Proposed |
+| 0009 | [Bots v0: enemy pilots, waves, ships that take damage](0009-bots-v0.md) | Proposed |
+| 0010 | [The online server: stellanova-server on the developer's machine](0010-online-server.md) | Proposed |

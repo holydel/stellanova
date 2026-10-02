@@ -56,19 +56,32 @@ device.
 - `scripts/run.ps1 [-On win32|web|deck|android] [-Arguments '...']
   [-Screenshot shot.png]` builds and runs the game and prints its log. Options: pith's
   shell options (`ph/shell/shell.h`: `--frames`, `--screenshot`,
-  `--platform none`...), `--flight` (start flying) and `--mute`.
+  `--platform none`...), `--flight` (start flying), `--online` (fly on the
+  game's server), `--server ADDRESS` (on another: `udp:host:port`, in
+  browsers `ws://`/`wss://`), `--autopilot` (our ship flies itself, as the
+  bots do; local games) and `--mute`. Screenshot runs move time 1/60 s a
+  frame: `--frames 600` is 10 s of game time (online, the server keeps
+  real time).
 - Tests: `ctest --test-dir build/<preset> -C Dev` (`sn_tests`, smoke runs of
   the menu and of flight, and the menu's screenshot test on Windows);
   `scripts/check.ps1` checks formatting, builds every preset in every
   configuration and runs the tests (the Deck's over SSH). Run it before
   every commit.
-- Code: `sim/` (`sn::sim`: the simulation and the protocol), `server/`
-  (`sn::server`: the match's authority; a local game runs it in the client
-  over pith's loopback), `client/` (`stellanova`: menu, settings, flight),
+- Code: `sim/` (`sn::sim`: the simulation and the protocol), `bots/`
+  (`sn::bots`: pilots that fly ships from what the sim shows), `server/`
+  (`sn::server`: the match's authority and its rules, the bots' waves; a
+  local game runs it in the client over pith's loopback; `stellanova-server`
+  runs it alone, over UDP and WebSocket), `client/`
+  (`stellanova`: menu, settings, flight),
   `content/` (the pack manifest, the strings tables, the pinned sources and
   their credits).
 - Steam: the game runs as app 1096260 (`client/src/main.cpp`); pith's
   samples use 480.
+- The online server runs on the developer's wos-observer.com machine
+  (`docs/adr/0010-online-server.md`); updating it, its debug mode, and the
+  web page: `docs/web-test-deploy.md`. Its stats, the client's Network
+  window and network captures: `docs/profiling.md`.
+- Steam uploads: `scripts/steam-upload.ps1` (`docs/steam.md`).
 
 ## Game (short)
 

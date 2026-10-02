@@ -20,8 +20,8 @@ namespace
 using namespace ph;
 using namespace ph::os;
 
-constexpr const char* MAIN_ITEMS[] = {"menu.skirmish", "menu.settings", "menu.credits",
-                                      "menu.quit"};
+constexpr const char* MAIN_ITEMS[] = {"menu.skirmish", "menu.online", "menu.settings",
+                                      "menu.credits", "menu.quit"};
 constexpr const char* SETTINGS_ITEMS[] = {"settings.music", "settings.effects",
                                           "settings.fullscreen", "menu.back"};
 constexpr const char* CREDITS_ITEMS[] = {"menu.back"};
@@ -29,9 +29,11 @@ constexpr const char* CREDITS_ITEMS[] = {"menu.back"};
 constexpr const char* CREDITS[] = {"credits.sky", "credits.fonts", "credits.sounds",
                                    "credits.engine"};
 constexpr u32 SKIRMISH = 0;
-constexpr u32 SETTINGS = 1;
-constexpr u32 CREDITS_ITEM = 2;
-constexpr u32 QUIT = 3;
+constexpr u32 ONLINE = 1;
+constexpr u32 SETTINGS = 2;
+constexpr u32 CREDITS_ITEM = 3;
+constexpr u32 QUIT = 4;
+constexpr ph::f32 NOTICE_SECONDS = 6.0f;
 constexpr u32 MUSIC = 0;
 constexpr u32 EFFECTS = 1;
 constexpr u32 FULLSCREEN = 2;
@@ -68,6 +70,12 @@ void Menu::Enter(Resources& from, Settings& with, os::WindowId in)
 }
 
 void Menu::Leave() { audio::Stop(ambience); }
+
+void Menu::Notice(const char* key)
+{
+	notice = key ? key : "";
+	noticeLeft = notice[0] ? NOTICE_SECONDS : 0.0f;
+}
 
 u32 Menu::ItemCount() const
 {
@@ -116,6 +124,7 @@ Menu::Action Menu::Activate()
 	switch (selected)
 	{
 		case SKIRMISH: return Action::Play;
+		case ONLINE: return Action::PlayOnline;
 		case SETTINGS:
 			PH_LOG_INFO("menu: settings");
 			page = Page::Settings;
@@ -334,6 +343,14 @@ void Menu::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui& u
 	                       : page == Page::Settings ? "settings.title"
 	                                                : "credits.title";
 	ui.Text(strings.Get(subtitle), itemX, 215.0f, small);
+	// Why the last online game ended, fading after a while.
+	noticeLeft = std::max(0.0f, noticeLeft - f32(time.delta));
+	if (page == Page::Main && noticeLeft > 0.0f)
+	{
+		TextLook warning = small;
+		warning.color = render::PackColor(1.0f, 0.55f, 0.45f, std::min(1.0f, noticeLeft));
+		ui.Text(strings.Get(notice), itemX, 242.0f, warning);
+	}
 	itemY = ITEM_Y;
 	if (page == Page::Credits)
 	{

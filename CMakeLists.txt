@@ -28,6 +28,7 @@ add_subdirectory(${SN_PITH_DIR} ${CMAKE_BINARY_DIR}/pith)
 ph_fetch_content(${CMAKE_CURRENT_SOURCE_DIR}/content)
 
 add_subdirectory(sim)
+add_subdirectory(bots)
 add_subdirectory(server)
 add_subdirectory(client)
 if(SN_BUILD_TESTS)

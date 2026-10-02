@@ -2,8 +2,12 @@
 // hand in a starfield (roadmap M1.1). pith's shell runs the window, the
 // device, the frame and the platform (Steam, as the game's own app). Options:
 // the shell's (ph/shell/shell.h), and
-//   --flight   start flying, past the menu (for screenshots and tests)
-//   --mute     no sound (tests; --screenshot runs are silent too)
+//   --flight     start flying, past the menu (for screenshots and tests)
+//   --online     start flying on the game's server (docs/adr/0010-online-server.md)
+//   --server ADDRESS  start flying on that server: udp:<host>:<port>, or in
+//                browsers ws://... or wss://...
+//   --autopilot  our ship flies itself, as the bots do (demos, tests)
+//   --mute       no sound (tests; --screenshot runs are silent too)
 
 #include "flight.h"
 #include "menu.h"
@@ -28,6 +32,13 @@ using namespace ph::os;
 constexpr u32 STEAM_APP_ID = 1096260;
 // Where a local game's server listens: in this process.
 constexpr const char* LOCAL_SERVER = "loopback:stellanova";
+// The game's server, on the developer's machine: UDP, and for browsers,
+// which have none, WebSocket through the site's TLS.
+#if PH_OS_WEB
+constexpr const char* ONLINE_SERVER = "wss://wos-observer.com/stellanova/ws";
+#else
+constexpr const char* ONLINE_SERVER = "udp:wos-observer.com:27015";
+#endif
 
 class Game final : public App
 {
@@ -44,6 +55,18 @@ public:
 		{
 			if (std::strcmp(args.argv[i], "--flight") == 0)
 				screen = Screen::Flight;
+			else if (std::strcmp(args.argv[i], "--online") == 0)
+			{
+				screen = Screen::Flight;
+				address = ONLINE_SERVER;
+			}
+			else if (std::strcmp(args.argv[i], "--server") == 0 && i + 1 < args.argc)
+			{
+				screen = Screen::Flight;
+				address = args.argv[++i];
+			}
+			else if (std::strcmp(args.argv[i], "--autopilot") == 0)
+				match.autopilot = true;
 			else if (std::strcmp(args.argv[i], "--mute") == 0 ||
 			         std::strcmp(args.argv[i], "--screenshot") == 0)
 				muted = true;
@@ -87,11 +110,19 @@ public:
 				menu.Draw(commands, shell.GetFrameTime(), ui);
 			else if (ready)
 			{
-				// The local game: our controls, the server's ticks, its answers.
+				// Our controls, the local server's ticks (none online), the
+				// answers.
 				flight.SendControls(commands.size);
-				server.Update(dt);
-				if (!flight.Receive(dt))
+				{
+					PH_PROFILE_SCOPE("Server.Update");
+					server.Update(dt);
+				}
+				if (!flight.Receive())
+				{
+					const bool welcomed = flight.WasWelcomed();
 					OpenMenu();
+					menu.Notice(welcomed ? "menu.server_gone" : "menu.unreachable");
+				}
 				else
 					flight.Draw(commands, shell.GetFrameTime(), ui);
 			}
@@ -101,7 +132,7 @@ public:
 				PH_LOG_INFO("game: starfield shown %.0f ms after startup",
 				            UptimeSeconds() * 1000.0);
 			}
-			shell.EndFrame(commands);
+			shell.EndFrame(commands, [](void* self) { static_cast<Game*>(self)->DrawUi(); }, this);
 		}
 		return result != AppResult::Continue ? result : shell.TickResult();
 	}
@@ -124,6 +155,14 @@ private:
 		Flight,
 	};
 
+	// Beside F1's diagnostics (Debug and Dev builds): the connection's, in
+	// flight.
+	void DrawUi()
+	{
+		if (ready && screen == Screen::Flight)
+			flight.DrawNetworkWindow();
+	}
+
 	// Once the pack, the device and the audio are there. False on failure.
 	bool Load()
 	{
@@ -143,17 +182,19 @@ private:
 		if (screen == Screen::Menu)
 			menu.Enter(resources, settings, shell.GetWindow());
 		else
-			StartSkirmish();
+			StartSkirmish(address);
 		ready = true;
 		return true;
 	}
 
-	void StartSkirmish()
+	// On the local server, which starts here, or on another one.
+	void StartSkirmish(const char* where)
 	{
-		PH_LOG_INFO("game: flight");
+		PH_LOG_INFO("game: flight on %s", where);
 		screen = Screen::Flight;
-		server.Start(LOCAL_SERVER);
-		flight.Enter(resources, LOCAL_SERVER);
+		if (std::strcmp(where, LOCAL_SERVER) == 0)
+			server.Start(LOCAL_SERVER, match);
+		flight.Enter(resources, where);
 	}
 
 	void OpenMenu()
@@ -172,7 +213,11 @@ private:
 			case sn::Menu::Action::None: break;
 			case sn::Menu::Action::Play:
 				menu.Leave();
-				StartSkirmish();
+				StartSkirmish(LOCAL_SERVER);
+				break;
+			case sn::Menu::Action::PlayOnline:
+				menu.Leave();
+				StartSkirmish(ONLINE_SERVER);
 				break;
 			case sn::Menu::Action::Quit: return AppResult::Success;
 		}
@@ -186,7 +231,9 @@ private:
 	sn::Menu menu;
 	sn::Flight flight;
 	sn::server::Server server; // the local game's
+	sn::server::MatchDesc match;
 	Screen screen = Screen::Menu;
+	const char* address = LOCAL_SERVER; // where --flight, --online or --server fly
 	bool ready = false;
 	bool shown = false;
 	bool muted = false;

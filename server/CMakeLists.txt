@@ -7,7 +7,15 @@ add_library(sn_server STATIC
 )
 add_library(sn::server ALIAS sn_server)
 target_include_directories(sn_server PUBLIC include)
-target_link_libraries(sn_server PUBLIC ph::build_config sn::sim ph::net)
+target_link_libraries(sn_server PUBLIC ph::build_config sn::sim sn::bots ph::net)
 ph_target_warnings(sn_server)
+
+# The dedicated server (docs/adr/0010-online-server.md): Linux for the hosted
+# one, Windows for local tries.
+if(NOT EMSCRIPTEN AND NOT ANDROID)
+	add_executable(stellanova-server src/main.cpp)
+	target_link_libraries(stellanova-server PRIVATE sn::server)
+	ph_target_warnings(stellanova-server)
+endif()
 
 set_property(GLOBAL APPEND PROPERTY SN_TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/tests/server_test.cpp)
