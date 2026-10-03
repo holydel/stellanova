@@ -7,6 +7,8 @@
 //   --server ADDRESS  start flying on that server: udp:<host>:<port>, or in
 //                browsers ws://... or wss://...
 //   --autopilot  our ship flies itself, as the bots do (demos, tests)
+//   --lag MS     a worse network, to try prediction: MS more each round trip
+//   --loss PERCENT  and that share of snapshots and inputs lost
 //   --mute       no sound (tests; --screenshot runs are silent too)
 
 #include "flight.h"
@@ -22,6 +24,7 @@
 #include <ph/core/time.h>
 #include <ph/shell/shell.h>
 
+#include <cstdlib>
 #include <cstring>
 
 namespace
@@ -67,10 +70,15 @@ public:
 			}
 			else if (std::strcmp(args.argv[i], "--autopilot") == 0)
 				match.autopilot = true;
+			else if (std::strcmp(args.argv[i], "--lag") == 0 && i + 1 < args.argc)
+				lagMs = f32(std::atof(args.argv[++i]));
+			else if (std::strcmp(args.argv[i], "--loss") == 0 && i + 1 < args.argc)
+				lossPercent = f32(std::atof(args.argv[++i]));
 			else if (std::strcmp(args.argv[i], "--mute") == 0 ||
 			         std::strcmp(args.argv[i], "--screenshot") == 0)
 				muted = true;
 		}
+		flight.SimulateNetwork(lagMs * 0.001f, lossPercent * 0.01f);
 		audio::Init();
 		settings.Load();
 		resources.pack.Request("stellanova.pak");
@@ -112,16 +120,22 @@ public:
 			{
 				// Our controls, the local server's ticks (none online), the
 				// answers.
-				flight.SendControls(commands.size);
+				flight.SendControls(commands.size, dt);
 				{
 					PH_PROFILE_SCOPE("Server.Update");
 					server.Update(dt);
 				}
 				if (!flight.Receive())
 				{
-					const bool welcomed = flight.WasWelcomed();
+					sn::sim::RefusalReason reason;
+					const char* notice =
+						flight.WasRefused(reason)
+					        ? (reason == sn::sim::RefusalReason::Full ? "menu.refused_full"
+					                                                  : "menu.refused_version")
+					    : flight.WasWelcomed() ? "menu.server_gone"
+					                           : "menu.unreachable";
 					OpenMenu();
-					menu.Notice(welcomed ? "menu.server_gone" : "menu.unreachable");
+					menu.Notice(notice);
 				}
 				else
 					flight.Draw(commands, shell.GetFrameTime(), ui);
@@ -194,7 +208,7 @@ private:
 		screen = Screen::Flight;
 		if (std::strcmp(where, LOCAL_SERVER) == 0)
 			server.Start(LOCAL_SERVER, match);
-		flight.Enter(resources, where);
+		flight.Enter(resources, where, shell.GetWindow());
 	}
 
 	void OpenMenu()
@@ -237,6 +251,8 @@ private:
 	bool ready = false;
 	bool shown = false;
 	bool muted = false;
+	f32 lagMs = 0.0f; // --lag, --loss
+	f32 lossPercent = 0.0f;
 };
 } // namespace
 

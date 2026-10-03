@@ -1,6 +1,6 @@
 # 0003. Netcode model: snapshots, own-ship prediction, lag compensation
 
-- Status: Proposed
+- Status: Accepted (2026-10-03, by the developer)
 - Date: 2026-09-30
 
 ## Context

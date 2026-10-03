@@ -1,10 +1,12 @@
 // stellanova-server, the game's dedicated server (docs/adr/0010-online-server.md):
-// one skirmish against waves of bots that every player who connects joins,
-// native clients over UDP and browsers over WebSocket behind a proxy that
-// gives TLS. Logs to its output; stops on Ctrl+C or SIGTERM.
-//   stellanova-server [--listen "<addresses>"] [--no-bots] [--stats SECONDS]
+// one match that every player who connects joins, with the bots its
+// players call in (/add_bots; waves with /waves on), native clients over UDP
+// and browsers over WebSocket behind a proxy that gives TLS. Logs to its
+// output; stops on Ctrl+C or SIGTERM.
+//   stellanova-server [--listen "<addresses>"] [--waves] [--stats SECONDS]
 //                     [--capture FILE] [--seconds N]
 //   --listen         default "udp:0.0.0.0:27015 ws:127.0.0.1:27080"
+//   --waves          waves of bots from the start, as in a local skirmish
 //   --stats SECONDS  a line on the match and its traffic that often, while
 //                    anyone plays (default 60; 0: none)
 //   --capture FILE   profile the whole run, the network's rates included:
@@ -141,12 +143,13 @@ int main(int argc, char** argv)
 	f64 runSeconds = 0.0; // 0: until stopped
 	sn::server::MatchDesc match;
 	match.resetWhenEmpty = true;
+	match.waves = false;
 	for (int i = 1; i < argc; ++i)
 	{
 		if (std::strcmp(argv[i], "--listen") == 0 && i + 1 < argc)
 			listen = argv[++i];
-		else if (std::strcmp(argv[i], "--no-bots") == 0)
-			match.bots = false;
+		else if (std::strcmp(argv[i], "--waves") == 0)
+			match.waves = true;
 		else if (std::strcmp(argv[i], "--stats") == 0 && i + 1 < argc)
 			statsSeconds = std::atof(argv[++i]);
 		else if (std::strcmp(argv[i], "--capture") == 0 && i + 1 < argc)
@@ -156,7 +159,7 @@ int main(int argc, char** argv)
 		else
 		{
 			std::fprintf(stderr, "usage: stellanova-server [--listen \"udp:0.0.0.0:27015 "
-			                     "ws:127.0.0.1:27080\"] [--no-bots] [--stats SECONDS] "
+			                     "ws:127.0.0.1:27080\"] [--waves] [--stats SECONDS] "
 			                     "[--capture FILE] [--seconds N]\n");
 			return 2;
 		}

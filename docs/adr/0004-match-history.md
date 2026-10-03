@@ -1,6 +1,6 @@
 # 0004. Match history as an event log; finishers from a client buffer
 
-- Status: Proposed
+- Status: Deferred (2026-10-03, by the developer): battle history and finishers come later; this stays the intended direction
 - Date: 2026-09-30
 
 ## Context

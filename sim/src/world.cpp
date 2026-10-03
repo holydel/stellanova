@@ -22,24 +22,6 @@ struct Random
 	}
 };
 
-void Fly(Ship& ship)
-{
-	const HullClass& hull = ship.hull;
-	const f32 turn = std::clamp(ship.controls.turn, -1.0f, 1.0f);
-	const f32 thrust = std::clamp(ship.controls.thrust, -1.0f, 1.0f);
-	// Kept in [-pi, pi], so that it stays precise over a long battle.
-	ship.angle = WrapAngle(ship.angle + turn * hull.turnRate * TICK_SECONDS);
-
-	const f32 push = thrust > 0.0f ? thrust : thrust * hull.reverse;
-	ship.velocity = ship.velocity + Forward(ship.angle) * (push * hull.acceleration * TICK_SECONDS);
-	// Arcade space: speed fades without thrust, and has a limit.
-	ship.velocity = ship.velocity * std::max(0.0f, 1.0f - hull.drag * TICK_SECONDS);
-	const f32 speed = Length(ship.velocity);
-	if (speed > hull.maxSpeed)
-		ship.velocity = ship.velocity * (hull.maxSpeed / speed);
-	ship.position = ship.position + ship.velocity * TICK_SECONDS;
-}
-
 // The shield comes back once the ship has gone without hits for a while.
 void Rest(Ship& ship)
 {
@@ -49,12 +31,12 @@ void Rest(Ship& ship)
 			std::min(ship.hull.shield, ship.shield + ship.hull.shieldRegen * TICK_SECONDS);
 }
 
-// While the trigger is held, a shot from the nose each interval.
+// The ship's gun, into the first free shot of the pool (a full pool loses
+// the shot).
 void Fire(World& world, u32 slot)
 {
-	Ship& ship = world.ships[slot];
-	ship.cooldown = std::max(0.0f, ship.cooldown - TICK_SECONDS);
-	if (!ship.controls.fire || ship.cooldown > 0.0f)
+	Shot fired;
+	if (!FireGun(world.ships[slot], fired))
 		return;
 	for (u32 i = 0; i < MAX_SHOTS; ++i)
 	{
@@ -62,41 +44,12 @@ void Fire(World& world, u32 slot)
 		Shot& shot = world.shots[index];
 		if (shot.life > 0.0f)
 			continue;
-		const WeaponClass& weapon = ship.weapon;
-		const Vec2 forward = Forward(ship.angle);
-		shot.position = ship.position + forward * (ship.hull.radius + weapon.radius);
-		shot.velocity = ship.velocity + forward * weapon.speed;
-		shot.life = weapon.life;
-		shot.radius = weapon.radius;
-		shot.damage = weapon.damage;
-		shot.owner = world.shipIds[slot];
-		shot.team = ship.team;
+		fired.owner = world.shipIds[slot];
+		shot = fired;
 		world.nextShot = (index + 1) % MAX_SHOTS;
-		ship.cooldown = weapon.interval;
 		AddEvent(world, {EventType::Fired, shot.owner, {}, NO_ROCK, shot.position, 0.0f});
 		return;
 	}
-}
-
-// How far along the way from `from` to `from + path` (0 to 1) a point first
-// comes within `reach` of `center`; negative when it does not. A shot
-// crosses up to 4 m a tick, more than the smallest rocks: a sweep cannot
-// skip them.
-f32 Contact(Vec2 from, Vec2 path, Vec2 center, f32 reach)
-{
-	const Vec2 off = from - center;
-	const f32 c = Dot(off, off) - reach * reach;
-	if (c <= 0.0f)
-		return 0.0f; // within reach already
-	const f32 a = Dot(path, path);
-	const f32 b = Dot(off, path);
-	if (a <= 0.0f || b >= 0.0f)
-		return -1.0f; // still, or going away
-	const f32 discriminant = b * b - a * c;
-	if (discriminant < 0.0f)
-		return -1.0f;
-	const f32 t = (-b - std::sqrt(discriminant)) / a;
-	return t <= 1.0f ? t : -1.0f;
 }
 
 // The point of a circle's edge toward `toward`.
@@ -150,7 +103,7 @@ void FlyShot(World& world, Shot& shot, const u32* ships, u32 shipCount)
 		if (candidate.health <= 0.0f)
 			continue;
 		const f32 t =
-			Contact(shot.position, path, candidate.position, candidate.radius + shot.radius);
+			SweepContact(shot.position, path, candidate.position, candidate.radius + shot.radius);
 		if (t >= 0.0f && t < first)
 		{
 			first = t;
@@ -162,7 +115,8 @@ void FlyShot(World& world, Shot& shot, const u32* ships, u32 shipCount)
 		const Ship& ship = world.ships[ships[i]];
 		if (!IsAlive(ship) || ship.team == shot.team)
 			continue;
-		const f32 t = Contact(shot.position, path, ship.position, ship.hull.radius + shot.radius);
+		const f32 t =
+			SweepContact(shot.position, path, ship.position, ship.hull.radius + shot.radius);
 		if (t >= 0.0f && t < first)
 		{
 			first = t;
@@ -227,34 +181,19 @@ void CollideShips(World& world, u32 a, u32 b)
 	                 closing});
 }
 
-// Rocks do not move: a ship that overlaps one is put back on its edge, and
-// its speed into the rock turns back, partly.
+// Rocks do not move: the ship bounces off them (BounceOffRocks), and each
+// bump is an event.
 void CollideWithRocks(World& world, u32 slot)
 {
-	Ship& ship = world.ships[slot];
-	for (u32 r = 0; r < world.rockCount; ++r)
-	{
-		const Rock& rock = world.rocks[r];
-		if (rock.health <= 0.0f)
-			continue;
-		const Vec2 away = ship.position - rock.position;
-		const f32 reach = ship.hull.radius + rock.radius;
-		if (Dot(away, away) >= reach * reach)
-			continue;
-		const f32 distance = Length(away);
-		const Vec2 normal = distance > 1e-4f ? away * (1.0f / distance) : Vec2{0.0f, 1.0f};
-		ship.position = rock.position + normal * reach;
-		const f32 into = -Dot(ship.velocity, normal);
-		if (into <= 0.0f)
-			continue;
-		ship.velocity = ship.velocity + normal * (into * (1.0f + ship.hull.bounce));
+	RockBump bumps[8];
+	const u32 count = BounceOffRocks(world.ships[slot], world.rocks, world.rockCount, bumps, 8);
+	for (u32 i = 0; i < std::min(count, 8u); ++i)
 		AddEvent(world, {EventType::ShipBumped,
 		                 world.shipIds[slot],
 		                 {},
-		                 r,
-		                 rock.position + normal * rock.radius,
-		                 into});
-	}
+		                 bumps[i].rock,
+		                 bumps[i].at,
+		                 bumps[i].into});
 }
 } // namespace
 
@@ -277,6 +216,87 @@ void AddEvent(World& world, const Event& event)
 {
 	if (world.eventCount < MAX_EVENTS)
 		world.events[world.eventCount++] = event;
+}
+
+void FlyShip(Ship& ship)
+{
+	const HullClass& hull = ship.hull;
+	const f32 turn = std::clamp(ship.controls.turn, -1.0f, 1.0f);
+	const f32 thrust = std::clamp(ship.controls.thrust, -1.0f, 1.0f);
+	// Kept in [-pi, pi], so that it stays precise over a long battle.
+	ship.angle = WrapAngle(ship.angle + turn * hull.turnRate * TICK_SECONDS);
+
+	const f32 push = thrust > 0.0f ? thrust : thrust * hull.reverse;
+	ship.velocity = ship.velocity + Forward(ship.angle) * (push * hull.acceleration * TICK_SECONDS);
+	// Arcade space: speed fades without thrust, and has a limit.
+	ship.velocity = ship.velocity * std::max(0.0f, 1.0f - hull.drag * TICK_SECONDS);
+	const f32 speed = Length(ship.velocity);
+	if (speed > hull.maxSpeed)
+		ship.velocity = ship.velocity * (hull.maxSpeed / speed);
+	ship.position = ship.position + ship.velocity * TICK_SECONDS;
+}
+
+bool FireGun(Ship& ship, Shot& shot)
+{
+	ship.cooldown = std::max(0.0f, ship.cooldown - TICK_SECONDS);
+	if (!ship.controls.fire || ship.cooldown > 0.0f)
+		return false;
+	const WeaponClass& weapon = ship.weapon;
+	const Vec2 forward = Forward(ship.angle);
+	shot = {};
+	shot.position = ship.position + forward * (ship.hull.radius + weapon.radius);
+	shot.velocity = ship.velocity + forward * weapon.speed;
+	shot.life = weapon.life;
+	shot.radius = weapon.radius;
+	shot.damage = weapon.damage;
+	shot.team = ship.team;
+	ship.cooldown = weapon.interval;
+	return true;
+}
+
+u32 BounceOffRocks(Ship& ship, const Rock* rocks, u32 rockCount, RockBump* bumps, u32 capacity)
+{
+	u32 count = 0;
+	for (u32 r = 0; r < rockCount; ++r)
+	{
+		const Rock& rock = rocks[r];
+		if (rock.health <= 0.0f)
+			continue;
+		const Vec2 away = ship.position - rock.position;
+		const f32 reach = ship.hull.radius + rock.radius;
+		if (Dot(away, away) >= reach * reach)
+			continue;
+		const f32 distance = Length(away);
+		const Vec2 normal = distance > 1e-4f ? away * (1.0f / distance) : Vec2{0.0f, 1.0f};
+		ship.position = rock.position + normal * reach;
+		const f32 into = -Dot(ship.velocity, normal);
+		if (into <= 0.0f)
+			continue;
+		ship.velocity = ship.velocity + normal * (into * (1.0f + ship.hull.bounce));
+		if (bumps && count < capacity)
+			bumps[count] = {r, rock.position + normal * rock.radius, into};
+		++count;
+	}
+	return count;
+}
+
+// A shot crosses up to 4 m a tick, more than the smallest rocks: a sweep
+// cannot skip them.
+f32 SweepContact(Vec2 from, Vec2 path, Vec2 center, f32 reach)
+{
+	const Vec2 off = from - center;
+	const f32 c = Dot(off, off) - reach * reach;
+	if (c <= 0.0f)
+		return 0.0f; // within reach already
+	const f32 a = Dot(path, path);
+	const f32 b = Dot(off, path);
+	if (a <= 0.0f || b >= 0.0f)
+		return -1.0f; // still, or going away
+	const f32 discriminant = b * b - a * c;
+	if (discriminant < 0.0f)
+		return -1.0f;
+	const f32 t = (-b - std::sqrt(discriminant)) / a;
+	return t <= 1.0f ? t : -1.0f;
 }
 
 ShipHandle SpawnShip(World& world, const Ship& ship)
@@ -375,7 +395,7 @@ void Step(World& world)
 	}
 	for (u32 i = 0; i < liveCount; ++i)
 	{
-		Fly(world.ships[live[i]]);
+		FlyShip(world.ships[live[i]]);
 		Rest(world.ships[live[i]]);
 		Fire(world, live[i]);
 	}

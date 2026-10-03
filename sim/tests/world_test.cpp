@@ -318,3 +318,40 @@ TEST_CASE("sim: ships bounce off each other")
 	CHECK(GetShip(*world, first)->velocity.y < 0.0f); // turned back
 	CHECK(GetShip(*world, second)->velocity.y > 0.0f);
 }
+
+TEST_CASE("sim: a ship flown alone flies as it does in the world")
+{
+	// What a client's prediction does (FlyShip, FireGun, BounceOffRocks)
+	// must be exactly what Step does to the same ship.
+	auto world = MakeWorld();
+	world->rocks[0] = {{0.0f, 20.0f}, 3.0f, 100.0f};
+	world->rocks[1] = {{0.0f, 8.0f}, 1.0f, 1.0f}; // the first shot breaks it
+	world->rockCount = 2;
+	const ShipHandle handle = SpawnShip(*world, {});
+	Ship alone = *GetShip(*world, handle);
+	u32 bumps = 0;
+	u32 shots = 0;
+	for (u32 tick = 0; tick < 6 * TICK_RATE; ++tick)
+	{
+		ShipControls controls;
+		controls.thrust = tick % 90 < 60 ? 1.0f : -1.0f;
+		controls.turn = tick < 45 ? 0.0f : std::sin(f32(tick) * 0.05f);
+		controls.fire = tick % 20 < 8;
+		SetControls(*world, handle, controls);
+		Step(*world);
+		alone.controls = controls;
+		FlyShip(alone);
+		Shot shot;
+		shots += FireGun(alone, shot);
+		bumps += BounceOffRocks(alone, world->rocks, world->rockCount, nullptr, 0);
+		const Ship& stepped = *GetShip(*world, handle);
+		CHECK(alone.position.x == stepped.position.x);
+		CHECK(alone.position.y == stepped.position.y);
+		CHECK(alone.velocity.y == stepped.velocity.y);
+		CHECK(alone.angle == stepped.angle);
+		CHECK(alone.cooldown == stepped.cooldown);
+	}
+	CHECK(bumps > 0);
+	CHECK(shots > 10);
+	CHECK(world->rocks[1].health == 0.0f); // shot away on the way: the alone one saw it go too
+}

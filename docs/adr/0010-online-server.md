@@ -1,6 +1,6 @@
 # 0010. The online server: stellanova-server on the developer's machine
 
-- Status: Proposed
+- Status: Accepted for the test phase (2026-10-03, by the developer); revisited before the public test, planned for about January 2027
 - Date: 2026-10-02
 
 ## Context
@@ -24,9 +24,10 @@
   alone, on Linux (and Windows, for tests).
   - One co-op skirmish against the bots' waves, which everyone who connects
     joins. When the last player leaves, the match starts over
-    (`MatchDesc::resetWhenEmpty`); an empty match does not tick.
+    (`MatchDesc::resetWhenEmpty`); an empty match does not tick. Since ADR
+    0011, no waves come unless a player asks (`/add_bots`, `/waves on`).
   - It listens at `udp:0.0.0.0:27015` and `ws:127.0.0.1:27080` by default
-    (`--listen "<addresses>"`; `--no-bots`).
+    (`--listen "<addresses>"`; `--waves` sends waves from the start).
   - It updates every millisecond while someone plays, every 10 ms
     otherwise. It logs to its output and stops on SIGTERM.
   - Stats: a line a minute while anyone plays (`--stats`), every second

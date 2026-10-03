@@ -1,6 +1,6 @@
 # 0008. Combat v0: circles, a gun, an asteroid field in the sim
 
-- Status: Proposed
+- Status: Accepted as v0 (2026-10-03, by the developer)
 - Date: 2026-10-01
 
 ## Context

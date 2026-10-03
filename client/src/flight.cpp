@@ -7,6 +7,7 @@
 #include <ph/core/time.h>
 #include <ph/debug_ui/debug_ui.h>
 #include <ph/os/input.h>
+#include <ph/platform/platform.h>
 #include <ph/render/camera.h>
 #include <ph/render/frame.h>
 #include <ph/render/sky.h>
@@ -37,9 +38,18 @@ constexpr f32 STICK_DEAD_ZONE = 0.15f;
 constexpr f32 TRIGGER_FIRES = 0.3f; // how far the right trigger goes before it fires
 constexpr f32 WAVE_BANNER = 2.5f;   // s a new wave's number shows
 constexpr f32 HINT_SECONDS = 10.0f; // s the controls show at the bottom, before they fade
-// Between inputs sent: at most about 70 a second (every frame at 60 Hz),
-// twice the server's ticks.
-constexpr u64 INPUT_INTERVAL_NS = 12'000'000;
+// A correction of our predicted ship fades out of what is drawn by e in
+// this many seconds; a jump bigger than SNAP m is the ship put elsewhere (back
+// home), shown as it is.
+constexpr f32 SMOOTHING = 0.1f;
+constexpr f32 SNAP = 4.0f;
+// What our predicted shots stop at: an enemy's hull as drawn (bots fly the
+// default hull's size).
+constexpr f32 TARGET_RADIUS = 1.5f;
+// The chat: lines kept, lines shown, and how long they stay before fading.
+constexpr usize CHAT_KEPT = 8;
+constexpr usize CHAT_SHOWN = 6;
+constexpr f32 CHAT_SECONDS = 12.0f;
 
 // The plane of play in the world: x is X, y is -Z (sim/world.h).
 Vec3 ToWorld(Vec2 p, f32 height = 0.0f) { return {p.x, height, -p.y}; }
@@ -95,9 +105,13 @@ void Bar(Ui& ui, f32 x, f32 y, f32 w, f32 h, u8 share, Vec3 color)
 }
 } // namespace
 
-void Flight::Enter(Resources& from, const char* address)
+void Flight::Enter(Resources& from, const char* address, os::WindowId into)
 {
 	resources = &from;
+	window = into;
+	chat.clear();
+	typing = false;
+	draft.clear();
 	client = net::Connect(address);
 	ship = 0;
 	team = sim::PLAYERS;
@@ -129,7 +143,18 @@ void Flight::Enter(Resources& from, const char* address)
 	receivedCounts = {};
 	staleSnapshots = 0;
 	netView = {};
-	inputSentNs = 0;
+	prediction = {};
+	autopiloted = false;
+	tickTime = 0.0f;
+	ticks = 0;
+	smoothing = {};
+	smoothingAngle = 0.0f;
+	ownShots.clear();
+	targets.clear();
+	refused = false;
+	named = false;
+	outbox.clear();
+	inbox.clear();
 
 	scenery.clear();
 	u32 seed = 7;
@@ -152,16 +177,43 @@ void Flight::Enter(Resources& from, const char* address)
 
 void Flight::Leave()
 {
+	if (typing)
+		StopTyping();
 	audio::Stop(engine);
 	net::Close(client);
 	client = {};
 	history.clear();
 	incoming.reset();
 	latest = nullptr;
+	outbox.clear();
+	inbox.clear();
 }
 
 bool Flight::OnEvent(const Event& event)
 {
+	if (event.type == EventType::TouchDown)
+		sawTouch = true;
+	if (typing)
+	{
+		OnTyping(event);
+		return false;
+	}
+	// The chat opens with Enter, the Chat button, or a pad's View button (on
+	// a Steam Deck in Game Mode, Steam's keyboard comes up with it). Alt+Enter
+	// is the shell's fullscreen toggle.
+	const bool enter =
+		(event.type == EventType::KeyDown && !event.key.repeat && !event.key.mods.alt &&
+		 (event.key.scancode == Scancode::Return || event.key.scancode == Scancode::KpEnter)) ||
+		(event.type == EventType::GamepadButtonDown && event.gamepad.button == GamepadButton::Back);
+	const bool button =
+		event.type == EventType::TouchDown && sawTouch && event.touch.x >= chatButton[0] &&
+		event.touch.x < chatButton[0] + chatButton[2] && event.touch.y >= chatButton[1] &&
+		event.touch.y < chatButton[1] + chatButton[3];
+	if ((enter || button) && welcomed)
+	{
+		StartTyping();
+		return false;
+	}
 	if (event.type == EventType::KeyDown && !event.key.repeat)
 		return event.key.scancode == Scancode::Escape || event.key.scancode == Scancode::AcBack;
 	if (event.type == EventType::GamepadButtonDown)
@@ -170,11 +222,89 @@ bool Flight::OnEvent(const Event& event)
 	return false;
 }
 
+void Flight::StartTyping()
+{
+	typing = true;
+	draft.clear();
+	os::StartTextInput(window);
+}
+
+void Flight::StopTyping()
+{
+	typing = false;
+	draft.clear();
+	os::StopTextInput(window);
+}
+
+void Flight::OnTyping(const Event& event)
+{
+	if (event.type == EventType::TextInput)
+	{
+		const usize length = std::strlen(event.text.text);
+		if (draft.size() + length <= sim::MAX_CHAT_BYTES)
+			draft.append(event.text.text, length);
+		return;
+	}
+	// A pad's B or View: a cancel.
+	if (event.type == EventType::GamepadButtonDown &&
+	    (event.gamepad.button == GamepadButton::East ||
+	     event.gamepad.button == GamepadButton::Back))
+	{
+		StopTyping();
+		return;
+	}
+	if (event.type != EventType::KeyDown)
+		return;
+	switch (event.key.scancode)
+	{
+		case Scancode::Backspace:
+			// The last character: its continuation bytes, then its first.
+			while (!draft.empty() && (u8(draft.back()) & 0xC0) == 0x80)
+				draft.pop_back();
+			if (!draft.empty())
+				draft.pop_back();
+			break;
+		case Scancode::Return:
+		case Scancode::KpEnter:
+		{
+			const sim::Say say{sim::CleanText(draft, sim::MAX_CHAT_BYTES)};
+			if (!say.text.empty())
+				Post(sim::Write(say), net::Delivery::Reliable);
+			StopTyping();
+			break;
+		}
+		case Scancode::Escape:
+		case Scancode::AcBack: StopTyping(); break;
+		default: break;
+	}
+}
+
+void Flight::OnChat(const sim::Chat& said)
+{
+	ChatLine line;
+	line.notice = said.notice;
+	if (said.notice)
+		line.text =
+			resources->strings.Format(said.text.c_str(), said.name.c_str(), said.extra.c_str());
+	else
+	{
+		line.text = said.name + ": " + said.text;
+		line.own = said.ship == ship;
+	}
+	chat.push_back(std::move(line));
+	if (chat.size() > CHAT_KEPT)
+		chat.erase(chat.begin());
+}
+
 sim::ShipControls Flight::ReadControls(PixelSize size) const
 {
+	// No flying while they type a chat line: keys type, and on the Steam Deck
+	// the pad and its trackpads work Steam's keyboard.
+	sim::ShipControls controls;
+	if (typing)
+		return controls;
 	const auto key = [](Scancode a, Scancode b)
 	{ return IsKeyDown(a) || IsKeyDown(b) ? 1.0f : 0.0f; };
-	sim::ShipControls controls;
 	f32 turn = key(Scancode::A, Scancode::Left) - key(Scancode::D, Scancode::Right);
 	f32 thrust = key(Scancode::W, Scancode::Up) - key(Scancode::S, Scancode::Down);
 	controls.fire = IsKeyDown(Scancode::Space);
@@ -205,8 +335,11 @@ sim::ShipControls Flight::ReadControls(PixelSize size) const
 		if (distance > 0.04f * f32(size.height))
 		{
 			const sim::ShipState* state = latest ? latest->Find(ship) : nullptr;
+			const f32 heading = prediction.IsActive() ? prediction.Now().angle
+			                    : state               ? state->angle
+			                                          : 0.0f;
 			const f32 wanted = std::atan2(-dx, dy);
-			const f32 off = sim::WrapAngle(wanted - (state ? state->angle : 0.0f));
+			const f32 off = sim::WrapAngle(wanted - heading);
 			turn += std::clamp(off * 2.5f, -1.0f, 1.0f);
 			thrust +=
 				std::abs(off) < 0.8f ? std::min(1.0f, distance / (0.3f * f32(size.height))) : 0.1f;
@@ -219,29 +352,138 @@ sim::ShipControls Flight::ReadControls(PixelSize size) const
 	return controls;
 }
 
-void Flight::SendControls(PixelSize size)
+void Flight::SendControls(PixelSize size, f32 dt)
 {
+	Release(outbox, false);
 	if (!ship)
 		return;
-	const sim::ShipControls controls = ReadControls(size);
-	// Unreliable, so the newest one wins. Not every frame: the server takes
-	// the newest each tick, and fast frames would send far more (280 a
-	// second at 280 Hz) than it uses.
-	const u64 now = MonotonicNs();
-	if (now - inputSentNs >= INPUT_INTERVAL_NS)
+	// Our ticks at the server's rate, on the frame's time as a local server
+	// counts it: each flies our ship at once and goes to the server.
+	tickTime += std::min(dt, 0.25f);
+	const sim::ShipControls controls = sim::Quantize(ReadControls(size));
+	bool ticked = false;
+	while (tickTime >= sim::TICK_SECONDS)
 	{
-		sim::Input input;
-		input.tick = latest ? latest->tick : 0;
-		input.controls = controls;
-		const std::vector<u8> bytes = sim::Write(input);
-		if (net::Send(client, bytes.data(), u32(bytes.size()), net::Delivery::Unreliable))
-			sentCounts.Add(bytes.data(), bytes.size());
-		inputSentNs = now;
+		tickTime -= sim::TICK_SECONDS;
+		++ticks;
+		sim::Shot shot;
+		if (prediction.Step(controls, shot))
+			Shoot(shot);
+		ticked = true;
 	}
+	if (ticked)
+		SendInput();
+	if (welcomed)
+		SendName();
 	// The engine hums only while the ship flies.
 	const f32 push = downFor < 0.0f ? std::abs(controls.thrust) : 0.0f;
 	audio::SetVolume(engine, downFor < 0.0f ? 0.15f + 0.55f * push : 0.0f);
 	audio::SetPitch(engine, 0.8f + 0.3f * push);
+}
+
+void Flight::SendName()
+{
+	// Steam's name for us, once Steam (connected in the background) has
+	// one; until then the server calls us "Pilot N".
+	const sim::Name name{sim::CleanText(platform::GetPlayerName(), sim::MAX_NAME_BYTES)};
+	if (named || name.name.empty())
+		return;
+	Post(sim::Write(name), net::Delivery::Reliable);
+	named = true;
+}
+
+void Flight::SendInput()
+{
+	// The newest few not yet applied, so that a lost message costs nothing.
+	const std::vector<Prediction::Controls>& pending = prediction.Pending();
+	if (pending.empty())
+		return;
+	sim::Input input;
+	input.count = std::min(u32(pending.size()), sim::MAX_INPUTS);
+	input.last = pending.back().number;
+	for (u32 i = 0; i < input.count; ++i)
+		input.controls[i] = pending[pending.size() - input.count + i].controls;
+	Post(sim::Write(input), net::Delivery::Unreliable);
+}
+
+void Flight::Shoot(const sim::Shot& shot)
+{
+	// It flew a tick already, in the tick it was fired.
+	ownShots.push_back(
+		{shot.position, shot.velocity, f64(ticks) - 1.0, f64(ticks) - 1.0, shot.life, shot.radius});
+	resources->PlayEffect(resources->fire, 0.3f);
+}
+
+void Flight::Post(const std::vector<u8>& bytes, net::Delivery delivery)
+{
+	sentCounts.Add(bytes.data(), bytes.size());
+	if (!lagNs && loss <= 0.0f)
+	{
+		net::Send(client, bytes.data(), u32(bytes.size()), delivery);
+		return;
+	}
+	if (delivery == net::Delivery::Unreliable && Random(random) < loss)
+		return; // lost on the way
+	outbox.push_back({MonotonicNs() + lagNs, bytes, delivery});
+}
+
+void Flight::Release(std::deque<Held>& held, bool inbound)
+{
+	const u64 now = MonotonicNs();
+	while (!held.empty() && held.front().dueNs <= now)
+	{
+		const Held message = std::move(held.front());
+		held.pop_front();
+		if (inbound)
+			OnMessage(message.bytes.data(), u32(message.bytes.size()));
+		else
+			net::Send(client, message.bytes.data(), u32(message.bytes.size()), message.delivery);
+	}
+}
+
+void Flight::SimulateNetwork(f32 roundTrip, f32 lost)
+{
+	lagNs = u64(std::max(0.0f, roundTrip) * 0.5e9f);
+	loss = std::clamp(lost, 0.0f, 1.0f);
+	if (lagNs || loss > 0.0f)
+		PH_LOG_INFO("flight: a network %.0f ms slower each round trip, %.0f%% of snapshots "
+		            "and inputs lost",
+		            f64(lagNs) * 2e-6, f64(loss) * 100.0);
+}
+
+void Flight::OwnPose(Vec2& position, f32& angle) const
+{
+	const sim::Ship& at = prediction.Now();
+	const sim::Ship& before = prediction.Before();
+	const f32 alpha = std::clamp(tickTime / sim::TICK_SECONDS, 0.0f, 1.0f);
+	position = before.position + (at.position - before.position) * alpha + smoothing;
+	angle = before.angle + sim::WrapAngle(at.angle - before.angle) * alpha + smoothingAngle;
+}
+
+void Flight::Correct(const sim::ShipState& own)
+{
+	if (autopiloted)
+		return;
+	const bool was = prediction.IsActive();
+	Vec2 wasPosition;
+	f32 wasAngle = 0.0f;
+	if (was)
+		OwnPose(wasPosition, wasAngle);
+	prediction.Correct(own, latest->cooldown, latest->input);
+	Vec2 position;
+	f32 angle = 0.0f;
+	if (prediction.IsActive())
+		OwnPose(position, angle);
+	// What is drawn stays where it was, and the jump fades out of it.
+	const Vec2 jump = wasPosition - position;
+	if (!was || !prediction.IsActive() || sim::Length(jump) > SNAP)
+	{
+		smoothing = {};
+		smoothingAngle = 0.0f;
+		return;
+	}
+	smoothing = smoothing + jump;
+	smoothingAngle += sim::WrapAngle(wasAngle - angle);
 }
 
 bool Flight::Receive()
@@ -252,9 +494,8 @@ bool Flight::Receive()
 	{
 		if (event.type == net::EventType::Connected)
 		{
-			const std::vector<u8> hello = sim::Write(sim::Hello{});
-			if (net::Send(client, hello.data(), u32(hello.size()), net::Delivery::Reliable))
-				sentCounts.Add(hello.data(), hello.size());
+			Post(sim::Write(sim::Hello{}), net::Delivery::Reliable);
+			SendName();
 			continue;
 		}
 		if (event.type == net::EventType::Disconnected)
@@ -263,49 +504,80 @@ bool Flight::Receive()
 			return false;
 		}
 		receivedCounts.Add(event.data, event.size);
-		switch (sim::TypeOf(event.data, event.size))
-		{
-			case sim::MessageType::Welcome:
-			{
-				sim::Welcome welcome;
-				if (sim::Read(event.data, event.size, welcome))
-					OnWelcome(welcome);
-				break;
-			}
-			case sim::MessageType::Events:
-			{
-				sim::Events events;
-				if (sim::Read(event.data, event.size, events))
-					OnEvents(events);
-				break;
-			}
-			case sim::MessageType::Snapshot:
-				if (!sim::Read(event.data, event.size, *incoming))
-					break;
-				// Late or doubled ones (UDP reorders) are dropped: the newer
-				// replaces them.
-				if (latest && incoming->tick <= latest->tick)
-					++staleSnapshots;
-				else
-				{
-					std::unique_ptr<sim::Snapshot> spare;
-					if (history.size() == HISTORY)
-					{
-						spare = std::move(history.front());
-						history.erase(history.begin());
-					}
-					history.push_back(std::move(incoming));
-					incoming = spare ? std::move(spare) : std::make_unique<sim::Snapshot>();
-					latest = history.back().get();
-					if (history.size() == 1)
-						renderTick = f64(latest->tick) - delayTicks;
-					OnSnapshot();
-				}
-				break;
-			default: break;
-		}
+		if (!lagNs && loss <= 0.0f)
+			OnMessage(event.data, event.size);
+		else if (sim::TypeOf(event.data, event.size) != sim::MessageType::Snapshot ||
+		         Random(random) >= loss)
+			inbox.push_back({MonotonicNs() + lagNs,
+			                 std::vector<u8>(event.data, event.data + event.size),
+			                 net::Delivery::Reliable});
 	}
-	return true;
+	Release(inbox, true);
+	return !refused;
+}
+
+void Flight::OnMessage(const u8* data, u32 size)
+{
+	switch (sim::TypeOf(data, size))
+	{
+		case sim::MessageType::Welcome:
+		{
+			sim::Welcome welcome;
+			if (sim::Read(data, size, welcome))
+				OnWelcome(welcome);
+			break;
+		}
+		case sim::MessageType::Events:
+		{
+			sim::Events events;
+			if (sim::Read(data, size, events))
+				OnEvents(events);
+			break;
+		}
+		case sim::MessageType::Chat:
+		{
+			sim::Chat said;
+			if (sim::Read(data, size, said))
+				OnChat(said);
+			break;
+		}
+		case sim::MessageType::Refusal:
+		{
+			sim::Refusal answer;
+			if (!sim::Read(data, size, answer))
+				break;
+			refused = true;
+			refusal = answer.reason;
+			PH_LOG_WARN("flight: the server turned us away: %s",
+			            answer.reason == sim::RefusalReason::Full ? "it is full"
+			                                                      : "another protocol version");
+			break;
+		}
+		case sim::MessageType::Snapshot:
+			if (!sim::Read(data, size, *incoming))
+				break;
+			// Late or doubled ones (UDP reorders) are dropped: the newer
+			// replaces them.
+			if (latest && incoming->tick <= latest->tick)
+				++staleSnapshots;
+			else
+			{
+				std::unique_ptr<sim::Snapshot> spare;
+				if (history.size() == HISTORY)
+				{
+					spare = std::move(history.front());
+					history.erase(history.begin());
+				}
+				history.push_back(std::move(incoming));
+				incoming = spare ? std::move(spare) : std::make_unique<sim::Snapshot>();
+				latest = history.back().get();
+				if (history.size() == 1)
+					renderTick = f64(latest->tick) - delayTicks;
+				OnSnapshot();
+			}
+			break;
+		default: break;
+	}
 }
 
 void Flight::DrawNetworkWindow()
@@ -384,6 +656,13 @@ void Flight::OnWelcome(const sim::Welcome& welcome)
 	ship = welcome.ship;
 	respawn = welcome.respawn;
 	welcomed = true;
+	prediction.Reset(welcome.hull, welcome.weapon, welcome.rocks);
+	autopiloted = welcome.autopilot;
+	tickTime = 0.0f;
+	ticks = 0;
+	ownShots.clear();
+	smoothing = {};
+	smoothingAngle = 0.0f;
 	rocks.clear();
 	u32 seed = 11;
 	for (const sim::Rock& from : welcome.rocks)
@@ -404,7 +683,10 @@ void Flight::OnWelcome(const sim::Welcome& welcome)
 void Flight::OnSnapshot()
 {
 	if (const sim::ShipState* own = latest->Find(ship))
+	{
 		team = own->team;
+		Correct(*own);
+	}
 	// Ships that were not flying in the last snapshot have just arrived: a
 	// wave's bots, or ours, at the start and back from its wreck.
 	bool arrived = false;
@@ -455,7 +737,10 @@ void Flight::OnEvents(const sim::Events& events)
 		{
 			case sim::EventType::Fired:
 				if (ours)
-					resources->PlayEffect(resources->fire, 0.3f);
+				{
+					if (!prediction.IsActive()) // else Shoot played it already
+						resources->PlayEffect(resources->fire, 0.3f);
+				}
 				else
 					PlayAt(TeamOf(event.ship) == team ? resources->fire : resources->enemyFire,
 					       0.3f, event.position);
@@ -465,6 +750,7 @@ void Flight::OnEvents(const sim::Events& events)
 				PlayAt(resources->hit, 0.3f, event.position);
 				break;
 			case sim::EventType::RockBroken:
+				prediction.BreakRock(event.rock);
 				if (event.rock < rocks.size())
 				{
 					Rock& rock = rocks[event.rock];
@@ -605,9 +891,17 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 		position = before->position + (state.position - before->position) * alpha;
 		angle = before->angle + sim::WrapAngle(state.angle - before->angle) * alpha;
 	};
+	// Ours where the prediction has it, a correction fading out.
+	const f32 fade = std::exp(-dt / SMOOTHING);
+	smoothing = smoothing * fade;
+	smoothingAngle *= fade;
+	const bool predicted = prediction.IsActive() && !autopiloted;
 	Vec2 position;
 	f32 angle = 0.0f;
-	pose(*now, position, angle);
+	if (predicted)
+		OwnPose(position, angle);
+	else
+		pose(*now, position, angle);
 
 	// From above, screen up along the plane's y (-Z), higher while enemies
 	// are near; a bump shakes it.
@@ -649,6 +943,7 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 	// the enemies' red. Wrecks have broken apart already.
 	effects.Begin(dt);
 	marks.clear();
+	targets.clear();
 	{
 		PH_PROFILE_SCOPE("Flight.Ships");
 		rhi::DebugLabelScope label(commands, "ships");
@@ -659,17 +954,30 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 				continue;
 			Vec2 at;
 			f32 heading = 0.0f;
-			pose(state, at, heading);
+			Vec2 velocity = state.velocity;
+			sim::ShipControls looks = state.controls;
+			if (predicted && state.id == ship)
+			{
+				at = position;
+				heading = angle;
+				velocity = prediction.Now().velocity;
+				looks = prediction.Now().controls;
+			}
+			else
+				pose(state, at, heading);
 			const bool enemy = state.team != team;
 			if (enemy)
+			{
 				marks.push_back({at, state.health, state.shield});
-			const Mat4 model = Translation(ToWorld(at)) * RotationY(heading) *
-			                   RotationZ(-0.5f * state.controls.turn);
+				targets.push_back(at);
+			}
+			const Mat4 model =
+				Translation(ToWorld(at)) * RotationY(heading) * RotationZ(-0.5f * looks.turn);
 			if (seen(ToWorld(at), height, 4.0f))
 				render::DrawMesh(commands, enemy ? resources->enemy : resources->ship,
 				                 enemy ? resources->enemyMaterial : resources->material, model);
 			effects.Ship(state.id, enemy ? enemyLook : ownLook, model,
-			             Vec3{state.velocity.x, 0.0f, -state.velocity.y}, state.controls.thrust,
+			             Vec3{velocity.x, 0.0f, -velocity.y}, looks.thrust,
 			             1.0f - f32(state.health) / 255.0f);
 		}
 	}
@@ -719,6 +1027,41 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 				Translation(ToWorld(at, 0.3f)) * RotationY(heading) * Scale({0.22f, 0.22f, 2.4f}));
 		}
 
+		// Ours, from the prediction, at our own tick drawn: each stops at the
+		// first rock or enemy on its way, as drawn; the server's events tell
+		// what it hit.
+		const f64 tick =
+			f64(ticks) - 1.0 + f64(std::clamp(tickTime / sim::TICK_SECONDS, 0.0f, 1.0f));
+		for (auto shot = ownShots.begin(); shot != ownShots.end();)
+		{
+			const auto where = [&](f64 when)
+			{ return shot->from + shot->velocity * f32((when - shot->born) * sim::TICK_SECONDS); };
+			const Vec2 start = where(shot->drawn);
+			const Vec2 path = where(tick) - start;
+			bool hit = f32((tick - shot->born) * sim::TICK_SECONDS) > shot->life;
+			for (const Rock& rock : rocks)
+			{
+				hit =
+					hit || (!rock.broken && sim::SweepContact(start, path, rock.position,
+					                                          rock.radius + shot->radius) >= 0.0f);
+			}
+			for (const Vec2 enemyAt : targets)
+				hit = hit ||
+				      sim::SweepContact(start, path, enemyAt, TARGET_RADIUS + shot->radius) >= 0.0f;
+			if (hit)
+			{
+				shot = ownShots.erase(shot);
+				continue;
+			}
+			shot->drawn = tick;
+			const Vec2 at = start + path;
+			render::DrawMesh(commands, resources->bolt, resources->boltMaterial,
+			                 Translation(ToWorld(at, 0.3f)) *
+			                     RotationY(sim::AngleOf(shot->velocity)) *
+			                     Scale({0.22f, 0.22f, 2.4f}));
+			++shot;
+		}
+
 		// Pieces of broken rocks and ships fly, slow down and shrink away.
 		for (Piece& piece : pieces)
 		{
@@ -764,6 +1107,7 @@ void Flight::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui&
 	if (!warmed)
 		WarmHud(ui);
 	DrawHud(ui, *now, dt);
+	DrawChat(ui, dt);
 	ui.End(commands);
 }
 
@@ -894,6 +1238,10 @@ void Flight::DrawHud(Ui& ui, const sim::ShipState& own, f32 dt)
 	{
 		std::snprintf(number, sizeof(number), "%u", wave);
 		ui.Text(strings.Format("flight.wave", number).c_str(), width - 32.0f, 28.0f, look);
+	}
+	// Bots called in without waves count too.
+	if (wave > 0 || enemies > 0)
+	{
 		std::snprintf(number, sizeof(number), "%u", enemies);
 		ui.Text(strings.Format("flight.enemies", number).c_str(), width - 32.0f, 60.0f, small);
 	}
@@ -943,6 +1291,75 @@ void Flight::DrawHud(Ui& ui, const sim::ShipState& own, f32 dt)
 		hintLook.maxWidth = width - 64.0f;
 		const char* hint = strings.Get("flight.hint");
 		ui.Text(hint, 32.0f, Ui::HEIGHT - 28.0f - ui.Measure(hint, hintLook).y, hintLook);
+	}
+}
+
+void Flight::DrawChat(Ui& ui, f32 dt)
+{
+	// The keyboard put away by the user (Android's back button): a cancel.
+	if (typing && !os::IsTextInputActive())
+		StopTyping();
+	for (ChatLine& line : chat)
+		line.age += dt;
+	StringTable& strings = resources->strings;
+	const f32 width = ui.Width();
+	const f32 keyboard = os::GetKeyboardInset(window) / ui.PixelsPerUnit();
+	f32 bottom = Ui::HEIGHT - 72.0f - keyboard;
+	TextLook look;
+	look.size = 18.0f;
+	look.maxWidth = std::min(560.0f, width - 64.0f);
+	look.glow = 0.15f;
+	look.glowColor = PackColor(0.0f, 0.0f, 0.0f, 0.8f);
+
+	// The line being typed, in a box, its caret blinking.
+	if (typing)
+	{
+		const std::string shown = std::string(strings.Get("chat.say")) + " " + draft +
+		                          (std::fmod(flown, 1.0f) < 0.5f ? "_" : "");
+		const Vec2 size = ui.Measure(shown.c_str(), look);
+		ui.Box(24.0f, bottom - size.y - 8.0f, look.maxWidth + 16.0f, size.y + 16.0f,
+		       PackColor(0.02f, 0.03f, 0.05f, 0.75f));
+		ui.Text(shown.c_str(), 32.0f, bottom - size.y, look);
+		bottom -= size.y + 24.0f;
+	}
+
+	// The newest lines upward; they fade after a while, unless the chat is open.
+	const usize shown = std::min(chat.size(), CHAT_SHOWN);
+	for (usize i = 0; i < shown; ++i)
+	{
+		const ChatLine& line = chat[chat.size() - 1 - i];
+		const f32 alpha =
+			typing ? 1.0f : std::clamp((CHAT_SECONDS + 2.0f - line.age) / 2.0f, 0.0f, 1.0f);
+		if (alpha <= 0.0f)
+			break;
+		TextLook lineLook = look;
+		lineLook.color = line.notice ? PackColor(0.55f, 0.8f, 1.0f, alpha)
+		                 : line.own  ? PackColor(0.75f, 1.0f, 0.75f, alpha)
+		                             : PackColor(1.0f, 1.0f, 1.0f, alpha);
+		lineLook.glowColor = PackColor(0.0f, 0.0f, 0.0f, 0.8f * alpha);
+		const Vec2 size = ui.Measure(line.text.c_str(), lineLook);
+		ui.Text(line.text.c_str(), 32.0f, bottom - size.y, lineLook);
+		bottom -= size.y + 6.0f;
+	}
+
+	// For fingers: the button that opens the chat.
+	if (sawTouch && !typing)
+	{
+		const f32 w = 96.0f;
+		const f32 h = 44.0f;
+		const f32 x = width - 24.0f - w;
+		const f32 y = Ui::HEIGHT - 72.0f - h - keyboard;
+		ui.Box(x, y, w, h, PackColor(0.05f, 0.08f, 0.12f, 0.7f));
+		TextLook label = look;
+		label.align = Align::Center;
+		label.maxWidth = 0.0f;
+		const char* text = strings.Get("chat.button");
+		ui.Text(text, x + 0.5f * w, y + 0.5f * (h - ui.Measure(text, label).y), label);
+		const f32 scale = ui.PixelsPerUnit();
+		chatButton[0] = x * scale;
+		chatButton[1] = y * scale;
+		chatButton[2] = w * scale;
+		chatButton[3] = h * scale;
 	}
 }
 } // namespace sn

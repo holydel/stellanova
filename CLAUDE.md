@@ -59,7 +59,8 @@ device.
   `--platform none`...), `--flight` (start flying), `--online` (fly on the
   game's server), `--server ADDRESS` (on another: `udp:host:port`, in
   browsers `ws://`/`wss://`), `--autopilot` (our ship flies itself, as the
-  bots do; local games) and `--mute`. Screenshot runs move time 1/60 s a
+  bots do; local games), `--lag MS` and `--loss PERCENT` (a worse network, to
+  try prediction: ADR 0012) and `--mute`. Screenshot runs move time 1/60 s a
   frame: `--frames 600` is 10 s of game time (online, the server keeps
   real time).
 - Tests: `ctest --test-dir build/<preset> -C Dev` (`sn_tests`, smoke runs of
@@ -78,10 +79,16 @@ device.
 - Steam: the game runs as app 1096260 (`client/src/main.cpp`); pith's
   samples use 480.
 - The online server runs on the developer's wos-observer.com machine
-  (`docs/adr/0010-online-server.md`); updating it, its debug mode, and the
-  web page: `docs/web-test-deploy.md`. Its stats, the client's Network
+  (`docs/adr/0010-online-server.md`), without waves: players chat and call
+  bots in (`/help`, `docs/adr/0011-chat-and-commands.md`). Updating it, its
+  debug mode, and the web page: `docs/web-test-deploy.md`. Its stats, the client's Network
   window and network captures: `docs/profiling.md`.
 - Steam uploads: `scripts/steam-upload.ps1` (`docs/steam.md`).
+- Art: the house style is being made from the developer's references in
+  `refs/` (git-ignored; never committed, never sent to generators):
+  `docs/art-style.md`. Generated content through hosted APIs and pith's
+  content hub, with the budget and the first assets:
+  `docs/content-generation.md`.
 
 ## Game (short)
 

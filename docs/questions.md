@@ -1,20 +1,29 @@
 # Open questions and device checks
 
 Started during the overnight run of 2026-09-30 to 2026-10-01 and updated
-after the device session of 2026-10-01 (roadmap steps 27 and 28) and the
-work of that day and evening (steps 29-36). Each item says what is blocked
+after the device session of 2026-10-01 (roadmap steps 27 and 28), the work
+of that day and evening (steps 29-36), and the developer's answers of
+2026-10-03 (`docs/reviews/2026-10-03.md`). Each item says what is blocked
 and what an answer or a device session would settle. Remove items once
 answered.
 
 ## To check on devices
 
-- **Android, steps 29-36:** not run on Android yet: `hello_audio` (AAudio),
-  the game (its APK builds: `scripts/build.ps1 android`). An AGM Glory G1S
-  is connected since the evening of 2026-10-01 (Android 11, Snapdragon 480,
-  Adreno 619: a low-end phone above pith's floor); it was asleep and
-  locked. BlueStacks (`emulator-5554`, API 28) is below pith's minimum.
-  Chrome enables WebGPU from Android 12 only, so the web page needs the
-  Pixel or a headset.
+The developer's device weekend (roadmap step 57) is the next chance for
+most of these.
+
+- **Android:** the AGM Glory G1S (Android 11, Snapdragon 480, Adreno 619: a
+  low-end phone above pith's floor) is connected, with the game installed
+  since step 45. No run of the game on Android is recorded yet, nor of
+  Android's on-screen keyboard for the chat (ADR 0011) or `hello_audio`
+  (AAudio). Which keyboard does the AGM phone use, Gboard or the vendor's?
+  The Pixel is back. BlueStacks (`emulator-5554`, API 28) is below pith's
+  minimum. Chrome enables WebGPU from Android 12 only, so the web page
+  needs the Pixel or a headset.
+- **Chat in phone browsers:** the developer (2026-10-03): the chat works in
+  desktop browsers (WebGPU) but not in phone browsers. It was never built
+  for them (ADR 0011's "not yet"): a phone browser shows its keyboard only
+  for a text field. Step 60 adds a hidden one; check it on a phone.
 - **The Steam Deck's controls, by hand** (step 36): `hello_input` on the
   Deck in Game Mode should show "Steam Deck (Steam Deck layout)": A B X Y,
   L1 R1, L2 R2, View and Menu, L3 R3, L4 R4 L5 R5, the quick access button
@@ -35,7 +44,8 @@ answered.
   levels.
 
 - **Quest 3:** not connected since step 13. Nothing from steps 14 on has
-  run on it: sprites, uploads, pacing, devlink.
+  run on it: sprites, uploads, pacing, devlink. The device weekend runs the
+  game on it in flat mode.
 - **Galaxy XR and Quest capture while worn:** `vulkan_caps` gets no frames
   while the headset sleeps, so `docs/devices/sm-i610.json` still lists only
   the older 27 formats. Wear the headset during
@@ -58,43 +68,35 @@ answered.
 
 ## Decisions for the developer
 
-- **Steam with Stella Nova's app 1096260** (`docs/steam.md`): the license
-  works since 2026-10-02 (the game is in the developer's library), and
-  build 25669850 is uploaded. Until it is live on the default branch,
-  Steam serves StarIre's old build, which has no `stellanova.exe`. Left to
-  do in Steamworks:
-  - SteamPipe > Builds: set build 25669850 live on the default branch;
-  - add depot 1096262 (Linux + SteamOS) to the store package: the checklist
-    says the store and developer packages differ;
-  - Installation > Linux Runtime: Steam Linux Runtime 4.0, which pith
-    builds for;
-  - depot 1096262 is for the Steam Deck only: "All platforms" would give it
-    to Linux desktops and the Steam Frame too. Which?
+- **The backend (ADR 0005):** Proposed until a one-day spike (roadmap step
+  61) checks brainCloud's free tier against the developer's list (Steam
+  login, known users, account level, stats) and the ADR's open points; the
+  game server's admin channel is designed beside it. Then the developer
+  accepts or rejects the ADR.
+- **The UI system:** the developer (2026-10-03): today's interface is good
+  for an early demo, but a good UI system must come before the public test:
+  card-style screens for blueprints, fleet setups and fits, with stats and
+  graphs. Its ADR (how the game builds its interface) is not written yet.
+- **pith ADR 0016 (materials)** was reopened by the developer on
+  2026-10-03. What they want changed is not recorded yet: what should
+  change?
+- **Steam** (app 1096260): `docs/steam.md` is the one place for its state:
+  the builds, which one is live, and what is left to do in Steamworks (the
+  Linux depot in the developer and tester packages, the Linux runtime, and
+  whether the Linux depot is for the Deck only).
 - **The Android package name:** `stellanova.game` is a placeholder
   (`scripts/android.ps1`); Google Play keeps the first one uploaded
   forever. Which should it be?
 - **Steam Input on Windows, for pith's apps (app 480):** when an app
   connects to Steam as Spacewar, Steam Input takes the Xbox pad from XInput
   (`hello_input`: "gamepad 1 disconnected" the moment Steam connects), since
-  Spacewar's controls are Steam Input actions. The game, without a license
-  for 1096260, never connects, so it keeps the pad. Options: pith reads
+  Spacewar's controls are Steam Input actions. Options: pith reads
   pads through Steam Input's API (an action manifest and a configuration per
   controller type, with the planned input actions, pith ADR 0027), or
   Steam Input turned off for Spacewar in Steam, or `--platform none` for
-  input tests (what `hello_input` now suggests). The game's own default in
-  Steamworks decides it for 1096260.
-- **What next?** M1.1 is done (steps 33-35); M1.3 is nearly done (steps 36
-  and 40: rocks, a gun, ships that take damage, enemy bots in waves); the
-  online server runs (step 38). Queued: 39 (Steam uploads). Online play
-  wants our own ship predicted next: from the dev PC (91 ms round trip) it
-  answers about 0.2 s late (ADR 0010). Later: the XR layer (M1.2), fleets
-  and orders (M1.4), the game on Android, music (none yet; the AI tools
-  budget).
-- **The online server's home** (ADR 0010): it runs beside the WOS Observer
-  site, sandboxed and capped at 256 MB and half a CPU, and idles at 0.9%
-  of one. Anyone with the game can join: no accounts, nothing encrypted.
-  Fine for testing; for players, a small machine of its own (and a region
-  near them) would keep the site and the game apart. When?
+  input tests (what `hello_input` now suggests). The game connects as
+  1096260 since its license works (2026-10-02), so its own default in
+  Steamworks decides it there.
 - **The bots' balance** (ADR 0009): bot fighters have 3 shield and 4 hull
   (yours 8 and 12), fly at 16 m/s (yours 40) and fire dodgeable shots at
   35 m/s every 0.6 s, after the halving the developer asked for on
@@ -107,8 +109,8 @@ answered.
   subpasses of one pass would keep the HDR scene on chip, about 2.5 GB/s
   less at 60 Hz on a 1080x2400 phone; it needs a subpass step in pith's
   RHI. A B10G11R11 scene target would halve the scene's bytes but bands
-  more in dark gradients. Worth doing, and which first? Neither was
-  measured: no phone was connected on 2026-10-02.
+  more in dark gradients. Worth doing, and which first? Neither is
+  measured yet; the AGM phone and the Pixel can measure them now.
 - **PIX's analysis on the dev PC:** `pixtool save-event-list` fails with
   `E_PIX_ENABLE_EXPERIMENTAL_FEATURES_FAILED` under PIX 2402.07, though
   Developer Mode is on, so D3D12 captures open only in PIX's window. A
@@ -118,11 +120,6 @@ answered.
   frame's effect vertices to the GPU is the web's largest cost that grows
   with the fight (0.28 ms a frame in wave 1). Expanding particles in the
   vertex shader would cut it about 7x. Now, or with the scale test (M1.8)?
-- **The menu's look:** placeholders: Kenney's Space Kit craft and meteors
-  (CC0), Kenney's sci-fi sounds for the interface, Noto Sans Bold with a
-  glow for the title. Keep the layout (items on the left, the ship turning on the
-  right), or another idea?
-
 - **The default sky:** NASA's Deep Star Maps 2020 (4096x2048 OpenEXR, a
   36 MB download once per machine; free with credit: "NASA/Goddard Space
   Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC").

@@ -17,6 +17,8 @@ public:
 	const char* Get(const char* key);
 	// Get, with "{}" replaced by `value`.
 	std::string Format(const char* key, const char* value);
+	// Get, with its first "{}" replaced by `first` and the next by `second`.
+	std::string Format(const char* key, const char* first, const char* second);
 
 private:
 	struct Entry

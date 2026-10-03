@@ -1,6 +1,6 @@
 # 0002. Only our dedicated servers grant persistent rewards
 
-- Status: Proposed
+- Status: Accepted (2026-10-03, by the developer)
 - Date: 2026-09-30
 
 ## Context

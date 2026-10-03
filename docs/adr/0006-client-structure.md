@@ -1,6 +1,6 @@
 # 0006. The client: pith's shell, screens, text from string tables
 
-- Status: Proposed
+- Status: Accepted (2026-10-03, by the developer)
 - Date: 2026-10-01
 
 ## Context

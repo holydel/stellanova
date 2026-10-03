@@ -1,6 +1,6 @@
 # 0001. Simulation data model: typed pools, no ECS library
 
-- Status: Proposed
+- Status: Accepted (2026-10-03, by the developer)
 - Date: 2026-09-30
 
 ## Context

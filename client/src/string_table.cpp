@@ -5,6 +5,7 @@
 #include <ph/core/log.h>
 
 #include <algorithm>
+#include <cstring>
 
 namespace sn
 {
@@ -36,6 +37,20 @@ std::string StringTable::Format(const char* key, const char* value)
 	const ph::usize at = text.find("{}");
 	if (at != std::string::npos)
 		text.replace(at, 2, value);
+	return text;
+}
+
+std::string StringTable::Format(const char* key, const char* first, const char* second)
+{
+	std::string text = Get(key);
+	ph::usize at = text.find("{}");
+	if (at == std::string::npos)
+		return text;
+	text.replace(at, 2, first);
+	// After what went in: a "{}" in `first` stays as it is.
+	at = text.find("{}", at + std::strlen(first));
+	if (at != std::string::npos)
+		text.replace(at, 2, second);
 	return text;
 }
 } // namespace sn

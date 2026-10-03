@@ -6,5 +6,9 @@ CMakeUserPresets.json
 
 # Your own content files (content/README.md): never committed.
 /content/local/
+
+# Other people's pictures, as references for the art style (refs/README.md).
+/refs/*
+!/refs/README.md
 stellanova.vkpipelines
 devlink.png

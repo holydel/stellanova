@@ -179,6 +179,31 @@ f32 RockHealth(f32 radius);
 // off rocks and off each other. The tick's events replace the last ones.
 void Step(World& world);
 
+// One ship's part of a tick, for Step and for a client that flies its own
+// ship ahead of the server (ADR 0003): FlyShip, then FireGun, then
+// BounceOffRocks, as Step calls them.
+//
+// The ship turns, thrusts, slows and moves by its controls and hull.
+void FlyShip(Ship& ship);
+// While the trigger is held and the gun is ready: the shot it fires now, from
+// the nose, and the gun's cooldown starts again. False when it does not
+// fire. The shot's owner is the caller's to set.
+bool FireGun(Ship& ship, Shot& shot);
+// A rock a ship ran into: which, where they touched, and the speed into it.
+struct RockBump
+{
+	u32 rock = NO_ROCK;
+	Vec2 at;
+	f32 into = 0.0f;
+};
+// A ship that overlaps rocks is put back on their edges, and its speed into
+// each turns back, partly. Writes up to `capacity` bumps to `bumps` (which
+// may be null); returns how many there were.
+u32 BounceOffRocks(Ship& ship, const Rock* rocks, u32 rockCount, RockBump* bumps, u32 capacity);
+// How far along the way from `from` to `from + path` (0 to 1) a point first
+// comes within `reach` of `center`; negative when it does not.
+f32 SweepContact(Vec2 from, Vec2 path, Vec2 center, f32 reach);
+
 Vec2 Forward(f32 angle);
 // The angle that faces along `direction` (Forward's inverse).
 f32 AngleOf(Vec2 direction);

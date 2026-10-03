@@ -1,6 +1,6 @@
 # 0005. Backend services: brainCloud behind our own interface
 
-- Status: Proposed (verify the open points before accepting)
+- Status: Proposed; a one-day spike checks brainCloud against the developer's backend list (users, accounts, levels, stats) and the open points below before a decision (2026-10-03)
 - Date: 2026-09-30
 
 ## Context

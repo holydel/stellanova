@@ -66,13 +66,17 @@ scp -i $key "$bin\hello_clear_webgpu.js" "$bin\hello_clear_webgpu.wasm" "${serve
 ssh -i $key $server 'chown root:caddy /srv/pith-web/*; chmod 640 /srv/pith-web/*'
 ```
 
-The game's page keeps its name, so all four files go up as they are:
+The game's page keeps its name. Its four files go up under temporary names
+and are moved into place together, so that nobody loads a new page with an
+old `.wasm`:
 
 ```powershell
 D:\Projects\stellanova\scripts\build.ps1 web -Config Dev -Target stellanova
 $bin = 'D:\Projects\stellanova\build\web\bin\Dev'
-scp -i $key "$bin\stellanova.html" "$bin\stellanova.js" "$bin\stellanova.wasm" "$bin\stellanova.data" "${server}:/srv/pith-web/"
-ssh -i $key $server 'chown root:caddy /srv/pith-web/*; chmod 640 /srv/pith-web/*'
+$names = 'stellanova.html', 'stellanova.js', 'stellanova.wasm', 'stellanova.data'
+foreach ($name in $names) { scp -i $key "$bin\$name" "${server}:/srv/pith-web/.upload-$name" }
+$moves = ($names | ForEach-Object { "chown root:caddy /srv/pith-web/.upload-$_ && chmod 640 /srv/pith-web/.upload-$_ && mv /srv/pith-web/.upload-$_ /srv/pith-web/$_" }) -join ' && '
+ssh -i $key $server $moves
 ```
 
 Check it (from the server itself, or any machine):

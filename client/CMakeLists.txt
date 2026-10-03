@@ -11,6 +11,8 @@ ph_add_graphics_app(stellanova BACKEND ${PH_DEFAULT_BACKEND}
 		src/main.cpp
 		src/menu.cpp
 		src/menu.h
+		src/prediction.cpp
+		src/prediction.h
 		src/resources.cpp
 		src/resources.h
 		src/settings.cpp
@@ -50,5 +52,7 @@ endif()
 
 set_property(GLOBAL APPEND PROPERTY SN_TEST_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/tests/key_values_test.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/tests/prediction_test.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/key_values.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/prediction.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/string_table.cpp)

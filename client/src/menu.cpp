@@ -206,7 +206,8 @@ Menu::Action Menu::OnEvent(const Event& event)
 				case Scancode::Return:
 				case Scancode::KpEnter:
 				case Scancode::Space:
-					if (!event.key.repeat)
+					// Alt+Enter is the shell's fullscreen toggle.
+					if (!event.key.repeat && !event.key.mods.alt)
 						return Activate();
 					break;
 				case Scancode::Escape:

@@ -25,7 +25,8 @@ engine goals of their own: the scene graph and the XR layer.
   loop; profiling from the first frame; startup time from process start to
   the first frame.
 - Done when: an empty window runs on Win32 and UWP, and the headless tests
-  pass on both. (Linux moved to "Later in Phase 0".)
+  pass on both. (Linux came later, through pith's own X11 backend: step
+  10b.)
 - **Progress 2026-09-30:**
   - done: profiling barebone; the `ph::os` API; the `headless`, `win32` and
     `uwp` backends;
@@ -40,6 +41,8 @@ engine goals of their own: the scene graph and the XR layer.
 - Done when: an animated clear color runs on Win32 (Vulkan, D3D12, WebGPU on
   Dawn), UWP (D3D12), Chrome (WebGPU), Pixel and Quest 3 in flat mode
   (Vulkan).
+- **Done 2026-09-30** (steps 4-10; the Quest 3 ran Vulkan from step 13, and
+  the Steam Deck joined in step 10b).
 
 ### M0.4 Shaders and the triangle
 
@@ -47,25 +50,30 @@ engine goals of their own: the scene graph and the XR layer.
   a command-line tool that CMake runs at build time; RHI buffers and
   pipelines; offscreen screenshot and compare tool.
 - Done when: the triangle screenshot test passes on every OS of M0.3.
+- **Done 2026-10-01** (steps 12, 13 and 15): the triangle on every OS of
+  M0.3 and the Deck. Screenshot tests run on Win32's three backends; the
+  other OSes were checked by screenshot or by eye.
 
 ### M0.5 Debug UI and editor backbone
 
 - Dear ImGui drawn through our RHI (fps, OS, GPU) on every OS; the editor
   app (ImGui docking) on Win32; Slang in the editor (edit, recompile, see).
 - Done when: the editor recompiles a shader and shows the result live.
+- **Done 2026-10-01** (steps 11, 18 and 26).
 
 ### M0.6 Scene graph
 
 - ADR for a state-of-the-art, data-oriented scene graph with hierarchy;
   implementation; a stress sample with many animated nodes.
 - Done when: the sample runs on every OS, with a recorded benchmark.
+- **Not started** (2026-10-03).
 
 ### Later in Phase 0
 
-- Linux and Steam Deck through the `sdl3` OS backend (from M0.2).
 - Apple: Metal backend, macOS and iOS OS backends.
 - Tracy behind the profile macros; startup time from process creation;
   parallel initialization (GPU device, window, audio) to fit the 2 s target.
+
 ## Phase 1: offline core
 
 - **M1.1 Starfield and a ship.** Baked mesh format v0 (glTF in, runtime
@@ -77,29 +85,42 @@ engine goals of their own: the scene graph and the XR layer.
   Deck).
 - **M1.2 XR layer (pith).** OpenXR session, multiview stereo, 6DoF
   controllers, haptics on Quest, Galaxy XR and SteamVR. Sample: the
-  starfield and ship on a virtual table.
+  starfield and ship on a virtual table. Its groundwork comes sooner, on
+  the developer's headset (2026-10-03): step 59.
 - **M1.3 Combat v0.** Weapons, projectiles, damage, destruction; 2D
   collision (own shapes vs Box2D: ADR); simple attack bot.
-- **M1.4 Fleet and orders.** 4–7 ships; auto modes (point, area, patrol);
-  hand a ship to a bot; the 30-second control tutorial.
+  Done 2026-10-02 (steps 36 and 40; ADRs 0008 and 0009): circles for
+  collision in our own code (no Box2D), a gun, damage and destruction, bots
+  that attack in waves.
+- **M1.4 Fleet and orders.** The growing fleet (the developer, 2026-10-03):
+  one ship from the tutorial, a second fleet slot after 2-10 minutes of
+  tutorials, the largest size chosen after tests. The ships the player
+  does not fly take orders (attack others, guard the flagship, support the
+  flagship); auto modes (point, area, patrol), move to a point and
+  autoshoot first; hand a ship to a bot; the 30-second control tutorial.
+  Fleet v0 is step 58.
 - **M1.5 Skirmish loop.** Enemy fleets, tiers, win and lose, results; in-game
   UI library choice (ADR).
 - **M1.6 Feel.** Audio, haptics, effects, cinematic camera, finisher
   prototype.
 - **M1.7 Content pipeline.** ImGui editor: model viewer, prompt → model →
-  bake loop with third-party AI tools; texture compression tool.
+  bake loop with third-party AI tools; texture compression tool. Steps
+  47-54 are its work, after the core loop (2026-10-03).
 - **M1.8 Scale test.** 500 ships and 5000 projectiles offline; profile on a
   phone and on Quest; choose the tick rate.
 
 ## Phase 2: online and co-op
 
 - **M2.1 Transports.** Native UDP and browser transport; `stellanova-server`
-  on the Linux test server.
+  on the Linux test server. Done 2026-10-02 (step 38; ADR 0010, pith ADR
+  0036).
 - **M2.2 Online skirmish.** Snapshots, interpolation, own-ship prediction;
-  co-op vs bots.
+  co-op vs bots. Partly done: snapshots, interpolation and co-op against
+  bots (step 38, with step 40's bots and step 45's `/add_bots`); own-ship
+  prediction is in progress (step 56).
 - **M2.3 Backend.** Accounts and linking, inventory, server-granted rewards
   (ADR 0002); first store test builds (Steam, Google Play internal testing,
-  TestFlight, Meta).
+  TestFlight, Meta). Its spike comes early: step 61 (2026-10-03).
 - **M2.4 Battle mode v0.** Solar system map, bases, points of interest,
   resources; co-op vs bots.
 - **M2.5 Progression.** Account, character tree, blueprints, chest slots,
@@ -266,8 +287,8 @@ streams split into position and the rest.
     screenshots turned back to SDR. Open: Android, the Deck, the web, UWP.
 24. Present timing targets (Pixel now; the Deck once gamescope passes present
     timing through) and VRR. Deferred on 2026-10-01: only the Pixel and the
-    Deck have `VK_EXT_present_timing`, and neither was reachable; done once
-    the Pixel is back (see `questions.md`).
+    Deck have `VK_EXT_present_timing`, and neither was reachable. The Pixel
+    is back; this step waits for a slot in the plan (`questions.md`).
 25. Done on Win32 (pith ADR 0023): devlink v1. Debug and Dev builds connect
     out to pith (TCP 7707, JSON lines; `adb reverse` for phones);
     `pith app list | info | logs | vars | set | screenshot | quit`, also as
@@ -351,7 +372,7 @@ a menu. App IDs: 480 (Spacewar) for pith, 1096260 for Stella Nova.
     shows 0.8 s after start on the dev PC (Dev; 2.3 s on a cold first run)
     and 0.14 s on the Deck. The APK builds through pith's Gradle project
     (`scripts/build.ps1 android`). Open: running it on Android (no device
-    tonight); Steam with app 1096260 (`questions.md`); the loopback server
+    tonight); Steam with app 1096260 (`docs/steam.md`); the loopback server
     (pith's net module).
 34. Done (pith ADR 0031): meshes from glTF, baked v0. `pith pak build`
     "mesh" entries read glTF 2.0 with cgltf (tools only) into pith's
@@ -420,11 +441,12 @@ Next, the developer's list (2026-10-01, late evening):
     SteamOS (Linux) depot, uploaded with SteamCMD and a build account.
     Done (`scripts/steam-upload.ps1`, `docs/steam.md`): the license works
     since 2026-10-02, and the first build (25669850) went up that morning.
-    It goes live on the default branch from Steamworks.
+    It goes live on the default branch from Steamworks. Later builds, and
+    which one is live: `docs/steam.md`.
 
 The developer's list of 2026-10-01 (night), first: the Steam license (in
 Steamworks: the Developers group lacks StarIre's autogrant, see
-`questions.md`), then:
+`docs/steam.md`), then:
 
 40. Done (ADR 0009): enemy bots that fly and shoot. Ships have a shield
     that comes back after a rest and a hull; shots hit ships of other
@@ -492,3 +514,206 @@ The developer's list of 2026-10-02 (night):
     - Found and fixed: inputs went every frame, and every datagram got an
       acknowledgment of its own: about 280 packets a second each way per
       player at 280 Hz, now 70 in and 30 out.
+
+The developer's list of 2026-10-02 (morning), with the game running from
+Steam on Windows and the Deck:
+
+45. Done (ADR 0011; pith ADR 0027's addendum): chat and commands. Enter
+    (or a Chat button for fingers) opens it; lines go to everyone with the
+    speaker's name (Steam's, else "Pilot N"); the server tells who joined
+    and left. `/add_bots [count]`, `/remove_bots`, `/waves on|off`, `/who`,
+    `/help`. The online server sends no waves unless asked. pith shows
+    Android's on-screen keyboard for typing. The game is installed on the
+    developer's phone (AGM Glory G1S, Android 11).
+46. Done (`../pith/docs/ai-content-plan.md`): a plan for AI content
+    generation in pith's tools, from what is in use in October 2026.
+    `pith gen` commands, also MCP tools, for images, meshes, materials,
+    skies and audio. Each file gets a recipe (prompt, model, terms, cost);
+    cutscenes are timelines that an agent writes and pith renders, not
+    videos.
+
+The developer's answers of 2026-10-02 (afternoon): about $800 a month for
+content (a ceiling: 2026-10-03); hosted services only; the target is a
+content hub where content is generated, seen in the engine and packed;
+first the interface, ship models, ship and module icons, and space
+objects; a house style made from references first (`docs/art-style.md`,
+`docs/content-generation.md`).
+
+**After the core loop** (2026-10-03): steps 47-54 are M1.7's work and wait
+for the game's core loop. Meanwhile the house style goes on as references
+come in. The hub's center is the developer's item 3: generate
+a model, review it in the editor (rotate, zoom, sliders), and accept it
+into the pack (step 49). Spending starts as low as possible
+(`docs/content-generation.md`).
+
+47. In progress as references come in: the house style. `refs/` for the
+    developer's references (git-ignored); `pith image palette` (done) finds
+    their base tones and accents and draws a board; then three directions,
+    the developer's choice, the style bible and its anchors.
+48. The hub's plumbing in pith: `ph::gen` (providers over WinHTTP, keys
+    from the environment, a job journal, recipes, budget limits, a fake
+    provider for tests); images from Gemini and OpenAI, vectors from
+    Recraft; `pith gen` commands and MCP tools.
+49. The hub v1 in pith's editor: Library, Generate, Jobs, Review (a
+    generated model turned, zoomed and adjusted with sliders: the
+    developer's item 3, 2026-10-03), Accept into manifests and packs, the
+    running game reloading its pack through devlink, Budget. Design sheets
+    (the developer's idea, 2026-10-02): a ship is designed once as
+    consistent views with a description, and all its forms (its models,
+    map mark and blueprint, its icon, card and trailer shots) are
+    generated from the sheet; a new version marks them stale.
+50. Icons: module icons as vectors, drawn like text (tint, outline, glow);
+    ship icons generated from the ships' design sheets, for the HUD's
+    marks.
+51. The interface in the chosen style, drawn by the game in code.
+52. Ship models: concepts, design sheets, models from the sheets' views
+    (Meshy; Tripo, Hunyuan3D and Rodin through fal), normalized and
+    textured (pith's meshes v1), seen in a turntable and in flight.
+53. Space objects: planets (generated maps, a planet material), stars
+    (procedural), comets (effects), nebulae and galaxies (background
+    layers).
+54. Trailer clips and store pictures of ships, from their design sheets.
+
+The developer's answers of 2026-10-03 (the first Saturday review,
+`docs/reviews/2026-10-03.md`): server fixes first, then own-ship
+prediction, because online play works across platforms but the controls
+feel jerky and late, and a core prediction system would cost more later.
+The public server is for anyone who finds the link (few players expected).
+Nothing goes to Steam without the developer's direct command, and shipped
+builds will come from commits, though not yet for the nearest feature
+(`docs/steam.md`). XR comes sooner, on the developer's headset. The
+developer has read almost none of the engine so far. Fleets, scales and
+controls: `docs/vision.md`.
+
+55. Done (ADR 0012; pith ADR 0036's addendum): hardening the public server
+    (the review's list).
+    - The game: a repeated Hello is ignored; peers that never say Hello
+      are dropped; at most 16 players, the rest refused with a reason;
+      each player's snapshot starts with its own ship, then the nearest;
+      `/waves` returns to the server's start-up setting when the match
+      restarts; names are unique, renames are announced, invisible
+      characters are dropped; controls travel as small integers, so they
+      cannot carry NaN.
+    - pith: WebSocket frames parsed without quadratic cost, closing peers
+      time out, input bounded; empty UDP datagrams skipped; reassembly
+      memory follows the bytes received, with a per-server limit on
+      incoming reliable messages (the game's: 2 KB); datagrams
+      acknowledged only once accepted; the malformed-datagram warning
+      rate-limited.
+    - Also: controls that stop coming (a page in the background, a stalled
+      link) let go of the stick after half a second.
+    - Each attack of the review has a test (`server_test.cpp`, pith's
+      `transport_test.cpp` and `channel_test.cpp`).
+56. Done (ADR 0012): own-ship prediction (ADR 0003), protocol 4.
+    - The protocol: inputs carry sequence numbers and are applied one per
+      tick; each player's snapshot says which input was applied last;
+      Welcome carries the ship's hull and weapon; a refusal message says
+      why a server turns a client away.
+    - The client flies its own ship at once from its inputs, with the
+      sim's own flight code. On each snapshot it replays the inputs the
+      server has not applied yet, and smooths the corrections. Its own
+      shots appear at once.
+    - `--lag MS` and `--loss PERCENT` make any game's network worse, to
+      try it; pith's own loss simulation (ADR 0032) stays open.
+    - Tested over loopback with each way 100 and 167 ms late: each of 250
+      and more predicted positions equals the server's after the same
+      controls, a bounce off a rock and the gun's ticks included.
+57. In part: the server and the web page redeployed on 2026-10-03 after
+    both checks passed (pith's and the game's, every preset; the Linux
+    tests under WSL with the Steam Runtime's own libraries, the Deck being
+    asleep). Verified on the live server: Windows over UDP and Chrome over
+    wss join, and a chat line typed in the page reaches the server's log.
+    The Steam demo stays on protocol 3 until the developer orders an
+    upload. Next, the developer's device weekend: Windows, desktop and
+    phone browsers, the Deck, the AGM phone and the Quest in flat mode
+    (`build/android/gradle/outputs/apk/dev/stellanova-dev.apk`).
+58. Fleet v0 and indirect control: a second ship in the player's fleet,
+    flown by a bot pilot under orders (attack others, guard the flagship,
+    support the flagship); "move to a point" and autoshoot for the
+    flagship, so phones can play by orders. Account progress is faked
+    locally until the backend exists.
+59. In part (pith ADR 0038, proposed; 2026-10-03): XR groundwork, brought
+    forward. Done in pith:
+    - the frame block holds two views, and render passes draw both eyes at
+      once (Vulkan multiview), every renderer included;
+    - `ph::xr` with OpenXR (the Khronos loader 1.1.63; the runtime makes
+      the Vulkan device) and a simulated headset;
+    - `--xr openxr|sim`, and `hello_xr`: a room with both controllers and a
+      ph::ui panel the rays press;
+    - an XR APK for Quest and Android XR (`android-build.ps1 -Xr`);
+    - WebXR in browsers through WebGPU's XR binding (Chrome with the
+      developer's flags), a pass per view; `--xr webxr-test` puts a
+      stand-in headset into the page.
+
+    The simulated headset is verified on the dev PC (both eyes, validation
+    clean), and OpenXR reaches the Oculus runtime. In Chrome, a WebXR
+    session with the stand-in headset ran with both eyes and both
+    controllers' rays. Next: the run on the Quest 3 (OpenXR, and WebXR
+    through Quest Link or the Quest Browser), then the game's starfield and
+    a ship in it.
+60. In part (pith ADR 0027's addendum): chat in phone browsers. Once a
+    finger has touched the page, a hidden text field takes the typing and
+    brings up the keyboard (a Send key; suggestions work). Checked in
+    desktop Chrome through its DevTools protocol, keys alone and a tap then
+    the field; on the developer's phone it works (2026-10-03). On the Steam
+    Deck: the pad's View button opens the chat, Steam's floating keyboard
+    comes up in Game Mode (pith ADR 0028's addendum), B or View cancels, and
+    nothing flies the ship while typing. Then what the device weekend finds.
+61. The backend spike (ADR 0005): brainCloud's free tier against the
+    developer's list (Steam login, known users, account level, stats);
+    the game server's admin channel designed beside it (players online,
+    CPU, traffic, messages to all players, restart).
+62. In part (pith ADR 0037, proposed): the UI system, first of all
+    (2026-10-03). The developer chose pith's own over RmlUi, Noesis and
+    the rest: agents write the screens, every language goes through
+    pith's text, and a third-party library's performance and features
+    might not fit. v0 has `render/shapes.h` (distance-field boxes, lines,
+    arcs, triangles, glyphs and images in a few draws) and `ph::ui`
+    (immediate mode, flexbox-like rows and columns, buttons, toggles,
+    sortable tables, line and bar charts, radar diagrams, donuts, gauges;
+    eased values, hover, tooltips; mouse, touch, keys and pads). pith's
+    `hello_ui` shows it all: 845 shapes in one draw, about 55 µs to build
+    and lay out a frame on the dev PC, the same picture on Vulkan, D3D12
+    and WebGPU. Next: the game's menu on it, then card screens.
+    Then step 59 (multiview and OpenXR), then 58.
+63. In part (pith ADR 0039, proposed; 2026-10-03): glTF PBR. pith packs
+    glTF models with their tangents and mip levels, and lights them by
+    image (prefiltered skies and a BRDF table) and by a sun. `hello_pbr`
+    shows five Khronos sample models under three skies, the same on
+    Vulkan, D3D12 and WebGPU. Next: the web build's pack (85 MB) needs
+    block compression or smaller images.
+64. In part (pith ADR 0040, proposed; 2026-10-03): AR on Android phones.
+    `ph::ar` runs ARCore (opened at run time; its header is fetched at
+    configure time, never vendored) and a simulated runtime. `hello_ar`
+    puts a PBR model on a tapped surface, lit by ARCore's estimate of the
+    room. It works on the developer's Pixel 9 Pro XL after a fix that
+    matters for the game too: Mali runs the vertex shader for a few
+    vertices past a draw's count, and the UI's shape shader indexed a
+    table with their stale bytes (a GPU page fault, the device lost). A
+    shader that indexes with data it fetched by vertex index must clamp it.
+
+Done when (the week of 2026-10-03 to 2026-10-09):
+
+- online flight feels immediate on the developer's devices;
+- the public server survives the review's attacks, each one with a test;
+- a fleet of two flies with orders, move to a point and autoshoot;
+- the headset shows the starfield and a ship through OpenXR;
+- phone browsers can chat;
+- ADR 0005 is decided.
+
+Toward the first outside players (about January 2027, when the developer
+thinks the game is ready; maybe sooner):
+
+- the UI system (pith ADR 0037; v0 on 2026-10-03), then card-style
+  screens for blueprints, fleet setups and fits, with stats and graphs;
+- the tutorial (offline, 2-10 minutes) that opens the second fleet slot at
+  the first online login (ADR 0002);
+- the tactical and strategic views, and the ship's five forms
+  (`docs/vision.md`);
+- the content hub with model review in the editor (steps 47-54);
+- the 500-ship scale test (M1.8), with interest management and shots as
+  events (ADR 0003);
+- third-party notices in shipped builds;
+- the online server's home, revisited (ADR 0010);
+- pith going public a few months after the hub works (generation through
+  MCP, model previews).

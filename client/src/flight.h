@@ -1,6 +1,7 @@
 #pragma once
 
 #include "flight_effects.h"
+#include "prediction.h"
 #include "ui.h"
 
 #include <sn/sim/protocol.h>
@@ -9,6 +10,7 @@
 #include <ph/net/net.h>
 #include <ph/os/event.h>
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -16,12 +18,15 @@
 // Flying one ship by hand (roadmap M1.1) in an asteroid field (M1.3,
 // docs/adr/0008-combat-v0.md) against waves of enemy bots (0009-bots-v0.md),
 // as a client of a server (docs/adr/0007-local-server.md): the controls go
-// to it; its snapshots, the field and the events come back. Ships are drawn
-// between the last two snapshots, seen from above; the camera rises while
-// enemies are near. A pad: the left trigger thrusts, the left bumper
+// to it, a tick's worth at a time; its snapshots, the field and the events
+// come back. Our own ship and shots fly at once from our controls
+// (Prediction, docs/adr/0012-prediction-and-protocol-4.md); other ships are
+// drawn between the snapshots, a little behind the newest, seen from above;
+// the camera rises while enemies are near. A pad: the left trigger thrusts, the left bumper
 // reverses, the left stick turns, the right trigger fires. Keys: W A S D,
 // Space fires. A finger (or the mouse) held where the ship should go;
-// another finger (or the right button) fires.
+// another finger (or the right button) fires. Enter (or the Chat button,
+// for fingers) opens the chat: lines to everyone, and /commands.
 namespace sn
 {
 struct Resources;
@@ -29,17 +34,29 @@ struct Resources;
 class Flight
 {
 public:
-	// Connects to the server at `address`.
-	void Enter(Resources& resources, const char* address);
+	// Connects to the server at `address`; `window` is for typing (the
+	// on-screen keyboard).
+	void Enter(Resources& resources, const char* address, ph::os::WindowId window);
 	void Leave();
-	// True: back to the menu.
+	// True: back to the menu. While the chat is open, it takes every event.
 	bool OnEvent(const ph::os::Event& event);
-	// The controls to the server; then, after the server's update in a
-	// local game, Receive takes its answers. False when the server is gone.
-	void SendControls(ph::os::PixelSize size);
+	// Our ticks in the frame's `dt`: each flies our ship and its controls go
+	// to the server; then, after the server's update in a local game, Receive
+	// takes its answers. False when the server is gone, or turned us away.
+	void SendControls(ph::os::PixelSize size, ph::f32 dt);
 	bool Receive();
 	// Whether the server ever welcomed us: else it never answered.
 	bool WasWelcomed() const { return welcomed; }
+	// Whether, and why, the server turned us away.
+	bool WasRefused(sim::RefusalReason& reason) const
+	{
+		reason = refusal;
+		return refused;
+	}
+	// A worse network than the real one, for trying prediction (--lag,
+	// --loss): each message comes half the round trip late, and snapshots and
+	// inputs are lost at the rate given (0 to 1). Kept across flights.
+	void SimulateNetwork(ph::f32 roundTrip, ph::f32 loss);
 	void Draw(ph::rhi::CommandList& commands, const ph::render::FrameTime& time, Ui& ui);
 	// The Network window, beside F1's diagnostics (Debug and Dev builds): the
 	// connection's traffic, its messages by type, and how far behind the
@@ -90,9 +107,63 @@ private:
 		ph::u8 shield = 0;
 	};
 
+	// A line of the chat, as shown.
+	struct ChatLine
+	{
+		std::string text; // "name: text", or the server's notice
+		bool notice = false;
+		bool own = false;   // ours
+		ph::f32 age = 0.0f; // s since it came
+	};
+
+	// A message held back by the network simulator until it is due.
+	struct Held
+	{
+		ph::u64 dueNs = 0;
+		std::vector<ph::u8> bytes;
+		ph::net::Delivery delivery = ph::net::Delivery::Reliable;
+	};
+
+	// One of our own shots, from the prediction: where it is at our tick
+	// `t` is from + velocity * (t - born) ticks.
+	struct OwnShot
+	{
+		ph::Vec2 from;
+		ph::Vec2 velocity;
+		ph::f64 born = 0.0;
+		ph::f64 drawn = 0.0; // the tick it was last drawn at
+		ph::f32 life = 0.0f; // s
+		ph::f32 radius = 0.0f;
+	};
+
 	sim::ShipControls ReadControls(ph::os::PixelSize size) const;
+	// To the server: counted, and through the network simulator if it is on.
+	void Post(const std::vector<ph::u8>& bytes, ph::net::Delivery delivery);
+	// The simulator's messages that are due.
+	void Release(std::deque<Held>& held, bool inbound);
+	void OnMessage(const ph::u8* data, ph::u32 size);
+	// Our newest controls not yet applied, a few, to the server.
+	void SendInput();
+	// Our Steam name to the server, once there is one.
+	void SendName();
+	// A shot our prediction fired.
+	void Shoot(const sim::Shot& shot);
+	// A snapshot's word on our ship: the prediction corrected, the jump in
+	// what is drawn smoothed away.
+	void Correct(const sim::ShipState& own);
+	// Our predicted ship where it is drawn now: between the last two ticks,
+	// plus what is left of a correction.
+	void OwnPose(ph::Vec2& position, ph::f32& angle) const;
 	void OnWelcome(const sim::Welcome& welcome);
 	void OnEvents(const sim::Events& events);
+	void OnChat(const sim::Chat& chat);
+	// The chat's line being typed: open, keys and text, closed.
+	void StartTyping();
+	void StopTyping();
+	void OnTyping(const ph::os::Event& event);
+	// The last lines and the one being typed, above the on-screen keyboard;
+	// for fingers, the button that opens it.
+	void DrawChat(Ui& ui, ph::f32 dt);
 	// A new snapshot: ships that arrived warp in; a new wave shows.
 	void OnSnapshot();
 	void Burst(ph::Vec2 at, ph::u32 count, ph::f32 size, ph::f32 speed, bool metal);
@@ -145,7 +216,30 @@ private:
 	ph::f32 shake = 0.0f;     // the camera's, after a bump: 0 to 1
 	ph::u32 random = 1;       // for the looks of effects
 	ph::audio::Voice engine;
-	ph::u64 inputSentNs = 0; // when our controls last went
+	// Our ticks and their controls, and the prediction.
+	Prediction prediction;
+	bool autopiloted = false; // the server flies our ship: nothing to predict
+	ph::f32 tickTime = 0.0f;  // s into our next tick
+	ph::u64 ticks = 0;        // our ticks since Welcome
+	ph::Vec2 smoothing;       // a correction's jump, fading out of what is drawn
+	ph::f32 smoothingAngle = 0.0f;
+	std::vector<OwnShot> ownShots;
+	std::vector<ph::Vec2> targets; // this frame's enemies as drawn, for our shots
+	bool refused = false;
+	sim::RefusalReason refusal = sim::RefusalReason::Version;
+	bool named = false; // our Steam name went to the server
+	// The network simulator.
+	ph::u64 lagNs = 0; // each way
+	ph::f32 loss = 0.0f;
+	std::deque<Held> outbox;
+	std::deque<Held> inbox;
+	// The chat.
+	ph::os::WindowId window = 0;
+	std::vector<ChatLine> chat; // oldest first
+	bool typing = false;
+	std::string draft;          // what is typed, UTF-8
+	bool sawTouch = false;      // a finger touched: the Chat button shows
+	ph::f32 chatButton[4] = {}; // its rectangle in pixels: x, y, width, height
 
 	// Diagnostics: messages by type, snapshots dropped, and what the Network
 	// window read last (twice a second) with the rates since the one before.
