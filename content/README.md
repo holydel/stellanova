@@ -19,6 +19,8 @@ keys.
 | `starmap` | NASA SVS Deep Star Maps 2020: the sky | free to use with credit | "NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC" |
 | `noto_sans`, `noto_sans_bold` | Noto Sans Regular and Bold: the interface's text | SIL Open Font License 1.1 | nothing on screen, but the OFL text must ship with the fonts (before a release: add it to the pack or the install) |
 | `kenney_space` | Kenney's Space Kit: the ship and the meteors (glTF, baked into the pack's meshes) | CC0 1.0 | nothing (credit welcome: "Kenney, www.kenney.nl") |
-| `kenney_scifi` | Kenney's Sci-Fi Sounds: interface sounds, the engine and the ambience | CC0 1.0 | nothing (credit welcome: "Kenney, www.kenney.nl") |
+| `kenney_scifi` | Kenney's Sci-Fi Sounds: the confirm, hit, bump and blast sounds | CC0 1.0 | nothing (credit welcome: "Kenney, www.kenney.nl") |
+| `sounds/` (files here, not pinned) | The developer's picks of 2026-10-05: Sonniss #GameAudioGDC bundles, Mixkit, Kenney's Interface Sounds (`sounds/README.md`) | Sonniss license v2.0, Mixkit's free license, CC0 | nothing; the Sonniss files never leave this private repository except inside the game's packs |
+| `icons/` | The game's icons, drawn for it (`icons/README.md`) | ours | nothing |
 
 The menu's Credits page shows them (`credits.*` in `strings/en.txt`).

@@ -3,7 +3,7 @@
 # over SSH, like pith's.
 get_property(sources GLOBAL PROPERTY SN_TEST_SOURCES)
 add_executable(sn_tests ${sources})
-target_link_libraries(sn_tests PRIVATE ph::test_main sn::sim sn::bots sn::server)
+target_link_libraries(sn_tests PRIVATE ph::test_main sn::sim sn::bots sn::server sn::signin)
 # The client's plain-data parts (key = value files, strings).
 target_include_directories(sn_tests PRIVATE ${PROJECT_SOURCE_DIR}/client/src)
 ph_target_warnings(sn_tests)
@@ -17,3 +17,4 @@ if(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()
 	add_test(NAME sn_tests COMMAND sn_tests)
 endif()
+

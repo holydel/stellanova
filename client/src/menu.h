@@ -1,14 +1,15 @@
 #pragma once
 
+#include "input_kind.h"
 #include "ui.h"
 
 #include <ph/audio/audio.h>
 #include <ph/os/event.h>
 #include <ph/os/window.h>
 
-// The main menu (Skirmish, Online, Settings, Credits, Quit), the settings
-// page and the credits, over a ship turning in the starfield. Keys, a
-// gamepad, the mouse or a finger.
+// The main menu (Campaign, Skirmish, Online, Settings, Credits, Quit), the settings
+// page and the credits, over the splash where the build has one (content/
+// art.json). Keys, a gamepad, the mouse or a finger.
 namespace sn
 {
 struct Resources;
@@ -20,6 +21,7 @@ public:
 	enum class Action : ph::u8
 	{
 		None,
+		Campaign,   // the solo loop's hub (docs/solo-loop.md)
 		Play,       // a skirmish on this machine
 		PlayOnline, // the skirmish on the game's server
 		Quit,
@@ -30,6 +32,10 @@ public:
 	// why the last online game ended.
 	void Notice(const char* key);
 	void Leave();
+	// Settings, or with `credits` the credits (the playground's jumps).
+	void OpenPage(bool credits);
+	// The input used last, which the hint is for.
+	void SetInput(InputKind kind) { input = kind; }
 	Action OnEvent(const ph::os::Event& event);
 	Action Update(ph::f32 dt);
 	void Draw(ph::rhi::CommandList& commands, const ph::render::FrameTime& time, Ui& ui);
@@ -53,6 +59,7 @@ private:
 	// The item under a pointer at pixels (x, y), or ItemCount().
 	ph::u32 ItemAt(ph::f32 x, ph::f32 y) const;
 	void DrawItems(Ui& ui);
+	void DrawSplash(Ui& ui);
 
 	Resources* resources = nullptr;
 	Settings* settings = nullptr;
@@ -68,7 +75,8 @@ private:
 	int stickStep = 0;
 	ph::f32 stickRepeat = 0.0f;
 	const char* notice = "";
-	ph::f32 noticeLeft = 0.0f; // s
+	ph::f32 noticeLeft = 0.0f;          // s
+	InputKind input = InputKind::Mouse; // SetInput
 	ph::audio::Voice ambience;
 };
 } // namespace sn

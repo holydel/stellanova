@@ -82,6 +82,19 @@ Three words that decide arguments.
 
 ### Palette
 
+The first colors chosen (the developer, 2026-10-04): the menu's splash and
+other key art, from a color reference of their choosing
+(`docs/content-generation.md`). They are the `splash` kind's style in
+`content/gen.json`:
+
+- space and dark surfaces: deep navy blacks `#0A0F16`, `#111722`, `#192130`,
+  and slate blues `#242D41`, `#3E4D6B`;
+- light, the only bright accent: electric blue to pale cyan `#4E87BB`,
+  `#71B2D8`, `#ACDBE9`;
+- hulls: cool steel grays `#686A79`, `#97999F`.
+
+The roles for the whole game, to fill in:
+
 | Role | Color | Where |
 | --- | --- | --- |
 | Space | | the background |

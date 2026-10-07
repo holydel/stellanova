@@ -550,10 +550,16 @@ into the pack (step 49). Spending starts as low as possible
     developer's references (git-ignored); `pith image palette` (done) finds
     their base tones and accents and draws a board; then three directions,
     the developer's choice, the style bible and its anchors.
-48. The hub's plumbing in pith: `ph::gen` (providers over WinHTTP, keys
-    from the environment, a job journal, recipes, budget limits, a fake
-    provider for tests); images from Gemini and OpenAI, vectors from
-    Recraft; `pith gen` commands and MCP tools.
+48. In part (pith ADR 0041, 2026-10-04): the hub's plumbing in pith:
+    `ph::gen` (providers over WinHTTP, keys from the environment, a job
+    journal, recipes, budget limits, a fake provider for tests); images
+    from Gemini and OpenAI, vectors from Recraft; `pith gen` commands and
+    MCP tools. Done: Gemini's images, `pith gen providers | image | accept
+    | jobs`, the game's `content/gen.json` ($5 a day, $50 a month; `refs/`
+    never sent), a first test of nine images ($0.76;
+    `docs/content-generation.md`), and the first generated asset in the
+    game: the menu's splash (2026-10-04). Next: a design's other views from
+    its reference, then OpenAI and Recraft.
 49. The hub v1 in pith's editor: Library, Generate, Jobs, Review (a
     generated model turned, zoomed and adjusted with sliders: the
     developer's item 3, 2026-10-03), Accept into manifests and packs, the
@@ -632,8 +638,8 @@ controls: `docs/vision.md`.
     support the flagship); "move to a point" and autoshoot for the
     flagship, so phones can play by orders. Account progress is faked
     locally until the backend exists.
-59. In part (pith ADR 0038, proposed; 2026-10-03): XR groundwork, brought
-    forward. Done in pith:
+59. In part (pith ADR 0038, proposed until the Quest run; 2026-10-03): XR
+    groundwork, brought forward. Done in pith:
     - the frame block holds two views, and render passes draw both eyes at
       once (Vulkan multiview), every renderer included;
     - `ph::xr` with OpenXR (the Khronos loader 1.1.63; the runtime makes
@@ -663,7 +669,7 @@ controls: `docs/vision.md`.
     developer's list (Steam login, known users, account level, stats);
     the game server's admin channel designed beside it (players online,
     CPU, traffic, messages to all players, restart).
-62. In part (pith ADR 0037, proposed): the UI system, first of all
+62. In part (pith ADR 0037, accepted): the UI system, first of all
     (2026-10-03). The developer chose pith's own over RmlUi, Noesis and
     the rest: agents write the screens, every language goes through
     pith's text, and a third-party library's performance and features
@@ -676,13 +682,13 @@ controls: `docs/vision.md`.
     and lay out a frame on the dev PC, the same picture on Vulkan, D3D12
     and WebGPU. Next: the game's menu on it, then card screens.
     Then step 59 (multiview and OpenXR), then 58.
-63. In part (pith ADR 0039, proposed; 2026-10-03): glTF PBR. pith packs
+63. In part (pith ADR 0039, accepted; 2026-10-03): glTF PBR. pith packs
     glTF models with their tangents and mip levels, and lights them by
     image (prefiltered skies and a BRDF table) and by a sun. `hello_pbr`
     shows five Khronos sample models under three skies, the same on
     Vulkan, D3D12 and WebGPU. Next: the web build's pack (85 MB) needs
     block compression or smaller images.
-64. In part (pith ADR 0040, proposed; 2026-10-03): AR on Android phones.
+64. In part (pith ADR 0040, accepted; 2026-10-03): AR on Android phones.
     `ph::ar` runs ARCore (opened at run time; its header is fetched at
     configure time, never vendored) and a simulated runtime. `hello_ar`
     puts a PBR model on a tapped surface, lit by ARCore's estimate of the
@@ -691,6 +697,109 @@ controls: `docs/vision.md`.
     vertices past a draw's count, and the UI's shape shader indexed a
     table with their stale bytes (a GPU page fault, the device lost). A
     shader that indexes with data it fetched by vertex index must clamp it.
+
+The developer's MVP design of 2026-10-04 (`docs/solo-loop.md`), with the
+answers of the same day: accounts in files on our server, kinetic and
+thermal damage past the shield's threshold reaching the hull, orders with
+turrets that fire on their own, and a map of hex rings.
+
+65. In part (ADRs 0013, 0014 and 0015, proposed): the solo loop, playable.
+    - `content/catalog.json`: every number, built into the sim and read by
+      the website. A Lancer frigate (one external, one internal slot), a
+      pulse laser, a plasma gun and its charges, a shield booster, a
+      capacitor battery; the Raider for the enemies; the colony, the map,
+      loot.
+    - The sim: four damage types, resistances, the shield's threshold;
+      power and the capacitor, overloads; turrets that turn, lead and fire
+      by themselves; beams; magazines that reload from the hold; modules
+      worn by hull hits; mass from the hold; loot crates. The nose gun is
+      gone. Orders (`bots::Steer`): fly to a point, circle a target, stop.
+    - Protocol 5: Hello says what a client comes for (the skirmish or the
+      hub) with the catalog's hash; Login, Profile, Request and Result.
+    - The server hosts the skirmish and a battle per launch; accounts as
+      JSON files (`--data`), the leaderboard as JSON (`--leaderboard`).
+    - The client: Campaign in the menu; the hub (colony, hangar, storage,
+      star map) on ph::ui; flight by orders, with turrets, beams, crates,
+      the capacitor and modules in the HUD, a camera that rises to show the
+      fight. `--campaign --local` plays it on this machine.
+    - pith: `os::ReadSavedFile`/`WriteSavedFile` (localStorage on the web):
+      the account's key, and settings that now survive a reload.
+    - The first tuning, from battles watched in screenshots: turrets out-turn
+      hulls, plasma at 180 m/s firing within 1°, half the rocks, a fifth of
+      a hull hit to a module. A Lancer holding still clears ring 1 in 35 s.
+    - Next: the website and the server's deployment (ADR 0015), the
+      developer's play test, then balance, and the hub's look in the
+      house style.
+66. Done (ADR 0016, proposed; 2026-10-04): sign-in, unsaved guests, the
+    admin page, and helium-3 for helium-4.
+    - Players start as guests, kept in the server's memory while connected:
+      never saved, never ranked. Steam signs a player in (pith's
+      `platform::RequestAuthTicket`, checked with Steam's Web API); a
+      signed-in account is saved, and only those are on the leaderboard.
+      Another device gets a key of its own for the account.
+    - `sn::signin`: HTTPS (libcurl, WinHTTP) and RS256 (libcrypto, CNG) on
+      a thread; Steam, and Google, Apple and Discord ready for browsers
+      without apps yet. Tested with a real RS256 token and a fake HTTP.
+    - Protocol 6: Login carries a proof; `Signed` answers it.
+    - The admin page (`site/stellanova-admin.html`) on a second listener,
+      behind Caddy's `forward_auth` to WOS Observer's superuser login:
+      status, accounts, grants, renames, bans, hiding, signing out,
+      deleting. Live on wos-observer.com, with the new server and game page.
+    - Next: the developer's Steam Web API key on the server. Done the same
+      evening: Steam sign-in works end to end, and the leaderboard has its
+      first entry.
+67. In part (2026-10-04, the developer's list): the prototype grows up.
+    - Each building upgrades on its own, all five at once if paid for.
+    - The Colony tab is a 3D scene: the buildings in an arc above their
+      cards, on a dark moon under the gas giant; levels, upgrades and
+      picking show on the models (Kenney's stand in).
+    - Turrets are no longer drawn: the player's ship shows its turret's aim
+      in the HUD; enemies' turrets show only by their fire.
+    - Phones: Launch sits under the launch cost, and pith's web page sizes
+      its canvas to the visible viewport (`100dvh`), so the bottom of the
+      game is no longer under the browser's toolbar.
+    - Concepts for the first models: the Lancer, the Raider, the five
+      buildings and the colony scene ($2.44); the developer's picks
+      accepted into `content/generated/concepts/`, and the Lancer's
+      three-quarter view made again from its chosen top view ($0.28). The
+      colony's scene follows the picked layout. Next: Meshy, once the
+      developer's account is open.
+    - Icons: 62 vector icons in one style (`content/icons/`) for the site
+      and the game, which bakes them into a font of its own
+      (`scripts/icons.py`) drawn as MTSDF glyphs after the text's fonts:
+      resources, buildings, ships, modules, ammo, stats, damage types.
+    - Sounds: an audition of 137 candidates from big packs whose licenses
+      fit (Sonniss's GDC bundles, Kenney, OpenGameArt CC0, Mixkit); the
+      developer's nine picks in `content/sounds/`, trimmed, normalized,
+      the engine and the ambience as seamless loops.
+    - Models (2026-10-05): `pith gen model` (Meshy) made the five
+      buildings, the Lancer, the Raider and a crater at the developer's
+      budget (150k triangles, 4k maps): they replace Kenney's in the colony
+      and in flight, on the web too (the art pack: 261 MB, the developer
+      fine with it for now). Item pictures for the inventory (the `icon`
+      kind): the turrets, the plasma charges (iron rods), the boosters,
+      the batteries, the three resources.
+68. In part (2026-10-05, the developer's list): beautiful and convenient.
+    - The inventory (ADR 0017): every owned thing as a tile in places, as
+      EVE's cargo window, moved by dragging; ten turrets are ten tiles.
+      `--inventory-test` tries it on a seeded account kept in memory.
+      pith's UI got dragging, scroll areas, pictures, wrapping rows and a
+      border width (pith ADR 0037's addendum).
+    - Denser screens: the hub lays out on 1600x900 units, with hairlines.
+    - The fitting screen, as EVE's: the ship in 3D in a ring of its slots,
+      the modules that fit beside it, its numbers in sections.
+    - Phones (the developer, the same day): units never smaller than the
+      screen's dp, a compact layout under 1000 units across (tabs in a
+      bar at the bottom, panels stacked, 48-unit buttons), clear of the
+      system's bars (pith's `os::GetSafeInsets`); pith's UI scrolls by
+      swiping and drags after a hold on touch. Tried on the Pixel 9 Pro XL
+      and the AGM Glory G1S over adb.
+    - The house style after the developer's reference (EVE's dashboard
+      concept, `refs/ui/`): near-black glass, hairlines, small light type,
+      cyan, tinted buttons, thin bars.
+    - pith on the AGM's Adreno 619: matrices in uniform blocks read wrong
+      (the frame block now holds rows); its colony screen still shows its
+      scene or its interface, not both (pith `docs/targets/android.md`).
 
 Done when (the week of 2026-10-03 to 2026-10-09):
 

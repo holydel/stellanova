@@ -1,11 +1,22 @@
-// stellanova-server, the game's dedicated server (docs/adr/0010-online-server.md):
-// one match that every player who connects joins, with the bots its
-// players call in (/add_bots; waves with /waves on), native clients over UDP
-// and browsers over WebSocket behind a proxy that gives TLS. Logs to its
-// output; stops on Ctrl+C or SIGTERM.
-//   stellanova-server [--listen "<addresses>"] [--waves] [--stats SECONDS]
-//                     [--capture FILE] [--seconds N]
+// stellanova-server, the game's dedicated server (docs/adr/0010-online-server.md,
+// 0014-accounts-on-the-game-server.md, 0016-sign-in-and-admin.md): the
+// skirmish that every player who comes for it joins, with the bots its
+// players call in (/add_bots; waves with /waves on), and the hub: signed-in
+// accounts kept in a folder, guests while connected, each with its battles.
+// Native clients over UDP and browsers over WebSocket behind a proxy that
+// gives TLS. Logs to its output; stops on Ctrl+C or SIGTERM.
+//   stellanova-server [--listen "<addresses>"] [--data FOLDER]
+//                     [--leaderboard FILE] [--signin FILE] [--admin ADDRESS]
+//                     [--waves] [--stats SECONDS] [--capture FILE] [--seconds N]
 //   --listen         default "udp:0.0.0.0:27015 ws:127.0.0.1:27080"
+//   --data FOLDER    where accounts are kept (default "data"); the hub
+//                    opens with it
+//   --leaderboard FILE  the leaderboard as JSON, for the website (none
+//                    without it)
+//   --signin FILE    the sign-in file: the providers' ids and secrets
+//                    (sn/server/providers.h); without it everyone is a guest
+//   --admin ADDRESS  the admin page's listener ("ws:127.0.0.1:27081"); only
+//                    a proxy that lets admins alone through may reach it
 //   --waves          waves of bots from the start, as in a local skirmish
 //   --stats SECONDS  a line on the match and its traffic that often, while
 //                    anyone plays (default 60; 0: none)
@@ -16,6 +27,7 @@
 // Debug mode: SIGUSR1 (`systemctl kill -s USR1 stellanova-server`) switches
 // the stats to every second, with a line per player; the next one back.
 
+#include <sn/server/providers.h>
 #include <sn/server/server.h>
 
 #include <ph/core/log.h>
@@ -29,6 +41,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -99,21 +114,23 @@ void Read(const sn::server::Server& server, Readings& last, u64 nowNs, bool log,
 		// A match that started over counts its ticks from 0.
 		const u64 ticks = tick >= last.tick ? tick - last.tick : tick;
 		PH_LOG_INFO(
-			"stats: %u players, %.1f ticks/s; out %.0f packets/s, %.1f KB/s (%s); in "
+			"stats: %u players, %u in battles; %.1f ticks/s; out %.0f packets/s, %.1f KB/s (%s); "
+			"in "
 			"%.0f packets/s, %.1f KB/s (%s); %u peers, rtt %.0f ms, %llu resent, %llu B "
 			"queued",
-			server.GetPlayerCount(), f64(ticks) / seconds, rates.packetsSent,
-			rates.bytesSent / 1024.0, ByType(server.GetSent(), last.sent, seconds).c_str(),
-			rates.packetsReceived, rates.bytesReceived / 1024.0,
+			server.GetClientCount(), server.GetBattleCount(), f64(ticks) / seconds,
+			rates.packetsSent, rates.bytesSent / 1024.0,
+			ByType(server.GetSent(), last.sent, seconds).c_str(), rates.packetsReceived,
+			rates.bytesReceived / 1024.0,
 			ByType(server.GetReceived(), last.received, seconds).c_str(), traffic.peers,
 			f64(traffic.roundTripMs),
 			static_cast<unsigned long long>(traffic.resentFragments - last.traffic.resentFragments),
 			static_cast<unsigned long long>(traffic.queuedBytes));
 	}
 	std::unordered_map<net::PeerId, net::TrafficStats> players;
-	for (u32 i = 0; i < server.GetPlayerCount(); ++i)
+	for (u32 i = 0; i < server.GetClientCount(); ++i)
 	{
-		const net::PeerId peer = server.GetPlayerPeer(i);
+		const net::PeerId peer = server.GetClientPeer(i);
 		net::TrafficStats stats;
 		if (!net::GetPeerStats(server.GetListener(), peer, stats))
 			continue;
@@ -141,13 +158,24 @@ int main(int argc, char** argv)
 	const char* capture = nullptr;
 	f64 statsSeconds = 60.0;
 	f64 runSeconds = 0.0; // 0: until stopped
+	const char* data = "data";
+	const char* signIn = nullptr;
 	sn::server::MatchDesc match;
 	match.resetWhenEmpty = true;
 	match.waves = false;
+	sn::server::HubDesc hub;
 	for (int i = 1; i < argc; ++i)
 	{
 		if (std::strcmp(argv[i], "--listen") == 0 && i + 1 < argc)
 			listen = argv[++i];
+		else if (std::strcmp(argv[i], "--data") == 0 && i + 1 < argc)
+			data = argv[++i];
+		else if (std::strcmp(argv[i], "--leaderboard") == 0 && i + 1 < argc)
+			hub.leaderboard = argv[++i];
+		else if (std::strcmp(argv[i], "--signin") == 0 && i + 1 < argc)
+			signIn = argv[++i];
+		else if (std::strcmp(argv[i], "--admin") == 0 && i + 1 < argc)
+			hub.admin = argv[++i];
 		else if (std::strcmp(argv[i], "--waves") == 0)
 			match.waves = true;
 		else if (std::strcmp(argv[i], "--stats") == 0 && i + 1 < argc)
@@ -159,7 +187,8 @@ int main(int argc, char** argv)
 		else
 		{
 			std::fprintf(stderr, "usage: stellanova-server [--listen \"udp:0.0.0.0:27015 "
-			                     "ws:127.0.0.1:27080\"] [--waves] [--stats SECONDS] "
+			                     "ws:127.0.0.1:27080\"] [--data FOLDER] [--leaderboard FILE] "
+			                     "[--signin FILE] [--admin ADDRESS] [--waves] [--stats SECONDS] "
 			                     "[--capture FILE] [--seconds N]\n");
 			return 2;
 		}
@@ -170,8 +199,39 @@ int main(int argc, char** argv)
 	std::signal(SIGUSR1, OnDebugSignal);
 #endif
 
+	sn::server::FileStore store(data);
+	hub.store = &store;
+	// Sign-ins: the file's providers, checked over HTTPS.
+	std::unique_ptr<sn::server::SignInChecker> checker;
+	if (signIn)
+	{
+		std::ifstream file(signIn, std::ios::binary);
+		std::stringstream text;
+		text << file.rdbuf();
+		sn::server::SignInConfig config;
+		std::string why;
+		if (!file || !sn::server::ReadSignInConfig(text.str(), config, why))
+		{
+			PH_LOG_ERROR("stellanova-server: the sign-in file %s: %s", signIn,
+			             file ? why.c_str() : "cannot read it");
+			return 1;
+		}
+		std::unique_ptr<sn::server::Http> http = sn::server::MakeHttp();
+		if (!http)
+		{
+			PH_LOG_ERROR("stellanova-server: no HTTPS here, so no sign-ins");
+			return 1;
+		}
+		checker = sn::server::MakeProviderChecker(config, std::move(http));
+		hub.signIn = checker.get();
+		PH_LOG_INFO("stellanova-server: sign-ins:%s%s%s%s",
+		            config.steam.key.empty() ? "" : " steam",
+		            config.google.client.empty() ? "" : " google",
+		            config.apple.client.empty() ? "" : " apple",
+		            config.discord.client.empty() ? "" : " discord");
+	}
 	sn::server::Server server;
-	if (!server.Start(listen, match))
+	if (!server.Start(listen, match, hub))
 		return 1;
 	if (capture && !PH_ENABLE_PROFILING)
 	{
@@ -205,12 +265,12 @@ int main(int argc, char** argv)
 		const f64 interval = debug ? 1.0 : statsSeconds;
 		if (interval > 0.0 && f64(now - readings.atNs) * 1e-9 >= interval)
 		{
-			const bool busy = server.GetPlayerCount() > 0 ||
+			const bool busy = server.GetClientCount() > 0 ||
 			                  net::GetServerStats(server.GetListener()).packetsReceived !=
 			                      readings.traffic.packetsReceived;
 			Read(server, readings, now, busy, debug);
 		}
-		SleepFor(server.GetPlayerCount() > 0 ? 1'000'000 : 10'000'000);
+		SleepFor(server.GetClientCount() > 0 ? 1'000'000 : 10'000'000);
 	}
 	const net::TrafficStats total = net::GetServerStats(server.GetListener());
 	server.Stop();

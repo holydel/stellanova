@@ -1,0 +1,5 @@
+# Copies made from content/ for a local preview; the deploy makes them too.
+stellanova-catalog.json
+stellanova-strings-en.txt
+# Optional, made from content/generated/ (git-ignored itself).
+stellanova-splash.jpg

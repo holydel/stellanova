@@ -26,6 +26,21 @@ Every mode can be played against bots, players, or both: solo vs bots,
 players vs bots (co-op), players vs players. Examples for skirmish: 1 player
 vs bots, 2 players vs 2 bots, 2 vs 2.
 
+## The solo loop (the first playable game)
+
+The developer's design of 2026-10-04: a colony that grows while the game
+is closed, an endless star map of hex rings around it, battles with fitted
+ships for loot, and a leaderboard by the deepest ring cleared. It is the
+skirmish mode's solo form: the map's nodes are its rising tiers. Played on
+our server even alone, since only our servers grant progress (ADR 0002).
+Details and numbers: `docs/solo-loop.md`; ships, modules and damage: ADR
+0013; accounts on our server until a backend: ADR 0014; the website: ADR
+0015.
+
+*(interpretation)* The progression table below (resources lost after a
+battle, the interstellar chest) was written for battles and wars; the solo
+loop keeps its colony, ships and blueprints. How the two meet is open.
+
 ## Maps
 
 - Skirmish: empty space or an asteroid field.
@@ -196,4 +211,7 @@ so the game shows stats, maybe with graphs and diagrams.
 5. Web login and account linking.
 6. Decided on 2026-10-03: the UI system is pith's own (pith ADR 0037).
 7. The backend vendor: brainCloud (ADR 0005) or another, after a one-day
-   spike against the developer's backend list.
+   spike against the developer's backend list. Until then, accounts live in
+   files on our server (ADR 0014, the developer's choice of 2026-10-04).
+8. How the solo loop's progress (colony, ships, blueprints) meets battles
+   and wars, and the interstellar chest.

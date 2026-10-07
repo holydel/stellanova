@@ -1,0 +1,130 @@
+{
+	"about": "Every number of the game's ships, modules, colony and map (docs/solo-loop.md, docs/adr/0013-ships-modules-damage.md). Built into the game and the server, and read by the website. Names and descriptions are in strings/<language>.txt, by id.",
+	"season": 1,
+	"rules": {
+		"drag": 0.6,
+		"bounce": 0.5,
+		"moduleDamage": 0.2,
+		"beamAim": 3,
+		"shotAim": 1,
+		"attackRange": 0.8,
+		"boosterCapacitor": 0.2,
+		"restartCapacitor": 0.5,
+		"pickupRange": 6,
+		"crateLife": 90,
+		"clearedReturn": 60,
+		"repairMetal": 0.2,
+		"maxFleet": 3
+	},
+	"resources": [
+		{"id": "metal", "volume": 0.02, "mass": 0.02},
+		{"id": "he3", "volume": 0.01, "mass": 0.005},
+		{"id": "chips", "volume": 0.005, "mass": 0.002}
+	],
+	"hulls": [
+		{
+			"id": "lancer", "class": "frigate", "size": "S", "faction": "colony",
+			"reactor": 100, "mass": 120, "maxSpeed": 40,
+			"thrustForward": 3600, "thrustBackward": 1440, "thrustTurn": 260,
+			"hull": 400, "shield": 300, "shieldRegen": 6, "shieldThreshold": 8,
+			"capacitor": 2.0,
+			"slots": {"external": 1, "internal": 1, "rig": 0},
+			"resist": {"em": 0, "explosive": 0.1, "kinetic": 0.2, "thermal": 0.1},
+			"scanner": 250, "cargo": 20, "cargoMassFactor": 1.0, "radius": 1.5,
+			"cost": {"metal": 400, "he3": 60, "chips": 30}
+		},
+		{
+			"id": "raider", "class": "frigate", "size": "S", "faction": "pirates",
+			"reactor": 80, "mass": 100, "maxSpeed": 34,
+			"thrustForward": 2600, "thrustBackward": 1000, "thrustTurn": 200,
+			"hull": 120, "shield": 70, "shieldRegen": 3, "shieldThreshold": 5,
+			"capacitor": 1.5,
+			"slots": {"external": 1, "internal": 0, "rig": 0},
+			"resist": {"em": 0, "explosive": 0, "kinetic": 0.1, "thermal": 0.1},
+			"scanner": 220, "cargo": 10, "cargoMassFactor": 1.0, "radius": 1.5
+		}
+	],
+	"modules": [
+		{
+			"id": "laser_s", "kind": "laser", "slot": "external", "size": "S",
+			"health": 60, "mass": 6, "volume": 2, "power": 15, "energy": 0.04,
+			"range": 100, "turnSpeed": 2.5, "dps": {"em": 24},
+			"cost": {"metal": 120, "chips": 40}
+		},
+		{
+			"id": "plasma_s", "kind": "plasma", "slot": "external", "size": "S",
+			"health": 60, "mass": 9, "volume": 2, "power": 25, "energy": 0.006,
+			"range": 100, "turnSpeed": 3.5, "fireRate": 3, "magazine": 0.3, "reload": 4,
+			"shotSpeed": 180, "shotRadius": 0.3, "ammo": "plasma_charge_s",
+			"factor": {"kinetic": 1.0, "thermal": 1.2},
+			"cost": {"metal": 160, "chips": 60}
+		},
+		{
+			"id": "shield_booster_s", "kind": "shieldBooster", "slot": "internal", "size": "S",
+			"health": 40, "mass": 4, "volume": 1, "power": 5, "energy": 0.05, "boost": 15,
+			"cost": {"metal": 80, "chips": 30}
+		},
+		{
+			"id": "capacitor_battery_s", "kind": "capacitorBattery", "slot": "internal", "size": "S",
+			"health": 40, "mass": 10, "volume": 1, "power": 0, "capacitor": 1.5,
+			"cost": {"metal": 100, "chips": 20}
+		}
+	],
+	"ammo": [
+		{
+			"id": "plasma_charge_s", "volume": 0.01, "mass": 0.01,
+			"damage": {"kinetic": 5, "thermal": 5},
+			"cost": {"metal": 10, "he3": 10}, "batch": 100
+		}
+	],
+	"enemies": {
+		"fits": [
+			{"hull": "raider", "modules": ["laser_s"]},
+			{"hull": "raider", "modules": ["plasma_s"], "hold": {"plasma_charge_s": 400}}
+		],
+		"base": 2,
+		"perRings": 2,
+		"max": 12,
+		"growth": 1.12,
+		"sight": 260
+	},
+	"colony": {
+		"buildings": [
+			{"id": "mine", "produces": "metal", "rate": 120, "growth": 1.5, "cost": {"metal": 150, "chips": 20}},
+			{"id": "extractor", "produces": "he3", "rate": 60, "growth": 1.5, "cost": {"metal": 150, "chips": 20}},
+			{"id": "fab", "produces": "chips", "rate": 30, "growth": 1.5, "cost": {"metal": 200, "chips": 10}},
+			{"id": "depot", "storage": 1000, "growth": 1.6, "cost": {"metal": 250, "chips": 30}},
+			{"id": "command", "points": 10, "pointsPerLevel": 2, "refill": 720, "refillGrowth": 0.9, "cost": {"metal": 300, "chips": 50}}
+		],
+		"costGrowth": 1.7,
+		"time": 30,
+		"timeGrowth": 2,
+		"start": {
+			"resources": {"metal": 600, "he3": 200, "chips": 100},
+			"ships": [
+				{"hull": "lancer", "modules": ["plasma_s", "shield_booster_s"], "hold": {"plasma_charge_s": 300}}
+			],
+			"modules": ["laser_s", "capacitor_battery_s"],
+			"items": {"plasma_charge_s": 300},
+			"blueprints": ["lancer", "laser_s", "plasma_s", "shield_booster_s", "capacitor_battery_s", "plasma_charge_s"]
+		},
+		"rescue": {"hull": "lancer", "modules": ["laser_s"]}
+	},
+	"map": {
+		"seed": 20261004,
+		"fog": 2,
+		"launch": {"command": 1, "fuel": 5, "fuelPerRing": 1},
+		"kinds": [
+			{"id": "pirates", "weight": 4, "enemies": 1.0, "loot": 1.0},
+			{"id": "rich", "weight": 1, "enemies": 1.5, "loot": 2.0}
+		],
+		"loot": {
+			"metal": 40, "he3": 15, "chips": 8, "growth": 1.15,
+			"spread": 0.5,
+			"ammo": {"id": "plasma_charge_s", "chance": 0.25, "count": 40},
+			"module": {"chance": 0.05, "ids": ["laser_s", "plasma_s", "shield_booster_s", "capacitor_battery_s"]}
+		},
+		"field": {"count": 250, "size": 500, "clearing": 50, "minRadius": 1.5, "maxRadius": 7, "spacing": 3},
+		"enemyDistance": [110, 150]
+	}
+}

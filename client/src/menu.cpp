@@ -5,9 +5,7 @@
 
 #include <ph/core/log.h>
 #include <ph/os/input.h>
-#include <ph/render/camera.h>
-#include <ph/render/frame.h>
-#include <ph/render/sky.h>
+#include <ph/os/simulation.h>
 
 #include <algorithm>
 #include <cmath>
@@ -20,29 +18,32 @@ namespace
 using namespace ph;
 using namespace ph::os;
 
-constexpr const char* MAIN_ITEMS[] = {"menu.skirmish", "menu.online", "menu.settings",
-                                      "menu.credits", "menu.quit"};
+constexpr const char* MAIN_ITEMS[] = {"menu.campaign", "menu.skirmish", "menu.online",
+                                      "menu.settings", "menu.credits",  "menu.quit"};
 constexpr const char* SETTINGS_ITEMS[] = {"settings.music", "settings.effects",
-                                          "settings.fullscreen", "menu.back"};
+                                          "settings.fullscreen", "settings.interface_size",
+                                          "menu.back"};
 constexpr const char* CREDITS_ITEMS[] = {"menu.back"};
 // What the game shows from its content (content/README.md).
 constexpr const char* CREDITS[] = {"credits.sky", "credits.fonts", "credits.sounds",
                                    "credits.engine"};
-constexpr u32 SKIRMISH = 0;
-constexpr u32 ONLINE = 1;
-constexpr u32 SETTINGS = 2;
-constexpr u32 CREDITS_ITEM = 3;
-constexpr u32 QUIT = 4;
+constexpr u32 CAMPAIGN = 0;
+constexpr u32 SKIRMISH = 1;
+constexpr u32 ONLINE = 2;
+constexpr u32 SETTINGS = 3;
+constexpr u32 CREDITS_ITEM = 4;
+constexpr u32 QUIT = 5;
 constexpr ph::f32 NOTICE_SECONDS = 6.0f;
 constexpr u32 MUSIC = 0;
 constexpr u32 EFFECTS = 1;
 constexpr u32 FULLSCREEN = 2;
+constexpr u32 INTERFACE_SIZE = 3;
 
 // The items' place on screen, in units (the left margin narrows with the
 // screen).
 constexpr f32 MARGIN = 96.0f;
-constexpr f32 ITEM_Y = 300.0f;
-constexpr f32 ITEM_STEP = 60.0f;
+constexpr f32 ITEM_Y = 290.0f;
+constexpr f32 ITEM_STEP = 56.0f;
 constexpr f32 ITEM_WIDTH = 460.0f;
 constexpr f32 TEXT_SIZE = 32.0f;
 
@@ -58,7 +59,7 @@ void Menu::Enter(Resources& from, Settings& with, os::WindowId in)
 	settings = &with;
 	window = in;
 	page = Page::Main;
-	selected = SKIRMISH;
+	selected = CAMPAIGN;
 	if (!audio::IsPlaying(ambience))
 	{
 		audio::PlayDesc desc;
@@ -123,6 +124,7 @@ Menu::Action Menu::Activate()
 	resources->Play(resources->confirm);
 	switch (selected)
 	{
+		case CAMPAIGN: return Action::Campaign;
 		case SKIRMISH: return Action::Play;
 		case ONLINE: return Action::PlayOnline;
 		case SETTINGS:
@@ -139,30 +141,43 @@ Menu::Action Menu::Activate()
 	}
 }
 
-// Volumes step by a tenth (and wrap when activated); fullscreen toggles.
+// Volumes and the interface's size step by a tenth (and wrap when activated);
+// fullscreen toggles.
 void Menu::Adjust(int step, bool wrap)
 {
 	if (page != Page::Settings)
 		return;
-	const auto volume = [step, wrap](f32 value)
+	const auto tenths = [step, wrap](f32 value, int low, int high)
 	{
-		const int tenths = int(std::lround(value * 10.0f)) + step;
-		if (tenths > 10 && wrap)
-			return 0.0f;
-		return f32(std::clamp(tenths, 0, 10)) / 10.0f;
+		const int next = int(std::lround(value * 10.0f)) + step;
+		if (next > high && wrap)
+			return f32(low) / 10.0f;
+		return f32(std::clamp(next, low, high)) / 10.0f;
 	};
 	switch (selected)
 	{
-		case MUSIC: settings->music = volume(settings->music); break;
-		case EFFECTS: settings->effects = volume(settings->effects); break;
+		case MUSIC: settings->music = tenths(settings->music, 0, 10); break;
+		case EFFECTS: settings->effects = tenths(settings->effects, 0, 10); break;
 		case FULLSCREEN: settings->fullscreen = !settings->fullscreen; break;
+		case INTERFACE_SIZE:
+			settings->interfaceSize =
+				tenths(settings->interfaceSize, int(std::lround(MIN_INTERFACE_SIZE * 10.0f)),
+				       int(std::lround(MAX_INTERFACE_SIZE * 10.0f)));
+			break;
 		default: return;
 	}
 	resources->Play(resources->move);
 	settings->Apply(window);
 	settings->Save();
-	PH_LOG_INFO("menu: music %.1f, effects %.1f, fullscreen %s", settings->music, settings->effects,
-	            settings->fullscreen ? "on" : "off");
+	PH_LOG_INFO("menu: music %.1f, effects %.1f, fullscreen %s, interface %.0f%%", settings->music,
+	            settings->effects, settings->fullscreen ? "on" : "off",
+	            settings->interfaceSize * 100.0f);
+}
+
+void Menu::OpenPage(bool credits)
+{
+	page = credits ? Page::Credits : Page::Settings;
+	selected = 0;
 }
 
 Menu::Action Menu::Back()
@@ -262,8 +277,9 @@ Menu::Action Menu::OnEvent(const Event& event)
 
 Menu::Action Menu::Update(f32 dt)
 {
-	// F11 and Alt+Enter change fullscreen too: the setting follows.
-	if (IsWindowFullscreen(window) != settings->fullscreen)
+	// F11 and Alt+Enter change fullscreen too: the setting follows (not while
+	// pith pretends to be another screen, whose window refuses fullscreen).
+	if (GetDeviceSimulation().scale <= 0.0f && IsWindowFullscreen(window) != settings->fullscreen)
 	{
 		settings->fullscreen = !settings->fullscreen;
 		settings->Save();
@@ -300,27 +316,10 @@ Menu::Action Menu::Update(f32 dt)
 
 void Menu::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui& ui)
 {
-	const f32 t = f32(time.seconds);
-	// A ship turning slowly, the stars behind it: beside the items on wide
-	// screens, below them on narrow ones. The camera looks past the ship so
-	// that it shows there (in clip space).
-	constexpr f32 FOV = 0.9f;
-	constexpr f32 DISTANCE = 9.0f;
 	const f32 aspect = f32(commands.size.width) / f32(commands.size.height);
-	const f32 halfHeight = std::tan(0.5f * FOV) * DISTANCE;
-	const Vec2 at = aspect >= 1.3f ? Vec2{0.4f, 0.0f} : Vec2{0.25f, -0.5f};
-	const Vec3 target = {-at.x * halfHeight * aspect, -at.y * halfHeight, 0.0f};
-	const Vec3 eye = target + Vec3{0.0f, 1.2f, DISTANCE};
-	const Mat4 view = LookAt(eye, target, {0.0f, 1.0f, 0.0f});
-	const render::FrameData frame = render::MakeFrameData3D(commands, time, view, eye, FOV);
-	render::SetFrameData(commands, frame);
-	const f32 size = aspect >= 1.3f ? 1.0f : 0.8f;
-	resources->DrawShip(commands, RotationY(0.35f * t) * RotationZ(0.12f * std::sin(0.7f * t)) *
-	                                  Scale({size, size, size}));
-	if (resources->sky)
-		render::DrawSky(commands, resources->sky, frame, 1.0f);
-
 	ui.Begin(commands, time, *resources);
+	if (resources->HasSplash())
+		DrawSplash(ui);
 	pixelsPerUnit = ui.PixelsPerUnit();
 	itemX = std::min(MARGIN, 0.1f * ui.Width());
 	StringTable& strings = resources->strings;
@@ -359,7 +358,7 @@ void Menu::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui& u
 		TextLook line;
 		line.size = 20.0f;
 		line.color = TEXT;
-		// Clear of the ship, which turns on the right half of wide screens.
+		// Clear of the splash's ship, on the right half of wide screens.
 		line.maxWidth = aspect >= 1.3f ? 0.5f * ui.Width() - itemX : room;
 		for (const char* key : CREDITS)
 			itemY += ui.Text(strings.Get(key), itemX, itemY, line).y + 14.0f;
@@ -367,12 +366,41 @@ void Menu::Draw(rhi::CommandList& commands, const render::FrameTime& time, Ui& u
 	}
 	DrawItems(ui);
 	small.maxWidth = room;
-	const Vec2 hint = ui.Measure(strings.Get("menu.hint"), small);
-	ui.Text(strings.Get("menu.hint"), itemX, Ui::HEIGHT - 32.0f - hint.y, small);
+	// The hint for the input used last (docs/adr/0018-one-interface-every-device.md):
+	// the pad's buttons, Enter and Esc for keys; a mouse and fingers need none
+	// (phones show fewer words).
+	constexpr const char* HINTS[] = {nullptr, nullptr, "menu.hint_pad", "menu.hint_keys"};
+	if (const char* hintKey = HINTS[u32(input)])
+	{
+		const Vec2 hint = ui.Measure(strings.Get(hintKey), small);
+		ui.Text(strings.Get(hintKey), itemX, ui.Height() - 32.0f - hint.y, small);
+	}
 	small.align = Align::Right;
 	small.maxWidth = 0.0f;
 	ui.Text("v" SN_VERSION, ui.Width() - 24.0f, 24.0f, small);
 	ui.End(commands);
+}
+
+// The splash fills the screen: what does not fit is cut from both edges,
+// never stretched.
+void Menu::DrawSplash(Ui& ui)
+{
+	const f32 screen = ui.Width() / ui.Height();
+	const f32 image = f32(resources->splashWidth) / f32(resources->splashHeight);
+	Vec4 uv = {0.0f, 0.0f, 1.0f, 1.0f};
+	if (screen > image)
+	{
+		const f32 shown = image / screen; // of its height
+		uv.y = 0.5f * (1.0f - shown);
+		uv.w = 0.5f * (1.0f + shown);
+	}
+	else
+	{
+		const f32 shown = screen / image; // of its width
+		uv.x = 0.5f * (1.0f - shown);
+		uv.z = 0.5f * (1.0f + shown);
+	}
+	ui.Image(resources->splash, 0.0f, 0.0f, ui.Width(), ui.Height(), uv, 0xffffffff);
 }
 
 void Menu::DrawItems(Ui& ui)
@@ -390,16 +418,18 @@ void Menu::DrawItems(Ui& ui)
 		if (on)
 			ui.Box(itemX - 24.0f, y + 6.0f, 6.0f, TEXT_SIZE, ACCENT);
 		ui.Text(strings.Get(ItemKey(i)), itemX, y, look);
-		if (page != Page::Settings || i > FULLSCREEN)
+		if (page != Page::Settings || i > INTERFACE_SIZE)
 			continue;
 		char value[32];
 		if (i == FULLSCREEN)
 			std::snprintf(value, sizeof(value), "%s",
 			              strings.Get(settings->fullscreen ? "settings.on" : "settings.off"));
 		else
-			std::snprintf(
-				value, sizeof(value), "%d%%",
-				int(std::lround((i == MUSIC ? settings->music : settings->effects) * 100.0f)));
+			std::snprintf(value, sizeof(value), "%d%%",
+			              int(std::lround((i == MUSIC     ? settings->music
+			                               : i == EFFECTS ? settings->effects
+			                                              : settings->interfaceSize) *
+			                              100.0f)));
 		look.align = Align::Right;
 		ui.Text(value, itemX + itemWidth, y, look);
 	}

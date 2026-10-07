@@ -1,0 +1,10 @@
+// Made by CMake from content/catalog.json (sim/CMakeLists.txt): do not edit.
+#include <ph/core/types.h>
+
+namespace sn::sim::detail
+{
+extern const ph::u8 CATALOG_JSON[];
+extern const ph::usize CATALOG_JSON_SIZE;
+const ph::u8 CATALOG_JSON[] = {@SN_CATALOG_BYTES@ 0};
+const ph::usize CATALOG_JSON_SIZE = sizeof(CATALOG_JSON) - 1;
+} // namespace sn::sim::detail

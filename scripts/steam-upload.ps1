@@ -23,12 +23,15 @@ $root = Split-Path -Parent $PSScriptRoot
 $pith = Join-Path (Split-Path -Parent $root) 'pith'
 
 $AppId = 1096260
-# Each depot: where its files come from, and which ones go.
+# Each depot: where its files come from, and which ones go. The art pack
+# (content/art.json: the splash, the generated models, the item pictures)
+# exists where its generated files are, on the developer's PC: an upload
+# from elsewhere would go without it, so it is required.
 $Depots = @(
 	@{ Id = 1096261; Name = 'windows'; Preset = 'windows-msvc'
-		Files = @('stellanova.exe', 'stellanova.pak', 'steam_api64.dll') },
+		Files = @('stellanova.exe', 'stellanova.pak', 'stellanova-art.pak', 'steam_api64.dll') },
 	@{ Id = 1096262; Name = 'linux'; Preset = 'linux-x64'
-		Files = @('stellanova', 'stellanova.pak', 'libsteam_api.so') }
+		Files = @('stellanova', 'stellanova.pak', 'stellanova-art.pak', 'libsteam_api.so') }
 )
 
 $sdk = Get-ChildItem (Join-Path $pith 'third_party/private') -Directory -Filter 'steamworks_sdk_*' |

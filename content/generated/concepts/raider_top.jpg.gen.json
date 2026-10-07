@@ -1,0 +1,28 @@
+{
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Concept art of the Raider, a pirate light frigate in a sci-fi space war game, the player's enemy: a small, aggressive warship about 6 meters long, visibly from another faction than the player's clean military ships. Seen from directly above in a flat top-down orthographic plan view, its nose pointing straight up, centered, the whole ship visible with a wide empty margin around it, on a plain near-black background. A symmetrical but angular, aggressive silhouette that reads at a small size: jagged forward-pointing prongs like mandibles, hard angles, a rough hull of mismatched, patched and scorched armor plates bolted onto a salvaged frame. Engines at the back with glowing red-orange exhausts. The pirates' color: hot red-orange glowing strips and panels, clearly visible from above. No gun turrets or cannons: at most one small, low hardpoint bump near the nose for its single weapon. Even, clear light so every part reads. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background in deep navy blacks (#0A0F16, #111722, #192130); hull in dark gunmetal and cool steel grays (#4A4D58, #686A79, #97999F), rougher and darker than a clean military ship; light in hot red-orange (#D9482B, #FF7A3D, #FFB27A), the only bright accent. Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "prompt": "Concept art of the Raider, a pirate light frigate in a sci-fi space war game, the player's enemy: a small, aggressive warship about 6 meters long, visibly from another faction than the player's clean military ships. Seen from directly above in a flat top-down orthographic plan view, its nose pointing straight up, centered, the whole ship visible with a wide empty margin around it, on a plain near-black background. A symmetrical but angular, aggressive silhouette that reads at a small size: jagged forward-pointing prongs like mandibles, hard angles, a rough hull of mismatched, patched and scorched armor plates bolted onto a salvaged frame. Engines at the back with glowing red-orange exhausts. The pirates' color: hot red-orange glowing strips and panels, clearly visible from above. No gun turrets or cannons: at most one small, low hardpoint bump near the nose for its single weapon. Even, clear light so every part reads. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background in deep navy blacks (#0A0F16, #111722, #192130); hull in dark gunmetal and cool steel grays (#4A4D58, #686A79, #97999F), rougher and darker than a clean military ship; light in hot red-orange (#D9482B, #FF7A3D, #FFB27A), the only bright accent. Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 4
+  },
+  "job": {
+    "id": "20261004-182425-d395",
+    "providerId": "",
+    "started": "2026-10-04T18:24:25Z",
+    "finished": "2026-10-04T18:24:35Z",
+    "cost": 0.274298
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "ef63dc286f1f9f5e1e8d5c70969b8885a7ab31d99dfde6964ebe04ceca3f6d58",
+    "variant": 4,
+    "accepted": "2026-10-04T20:19:26Z",
+    "pith": "0.1.0"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "type": "model",
+  "provider": "meshy",
+  "model": "meshy-7.1",
+  "subject": "Battered, patched steel-gray armor plates, matte and scratched, not chrome; glowing red-orange slits and accents; red-orange engine exhausts.",
+  "prompt": "Battered, patched steel-gray armor plates, matte and scratched, not chrome; glowing red-orange slits and accents; red-orange engine exhausts.",
+  "references": [
+    {
+      "path": "generated/concepts/raider_three_quarter.jpg",
+      "sha256": "fc1ae2afc411d29b1a0e3acb66f646fe9aa165332755171154cc14f312ca5949"
+    },
+    {
+      "path": "generated/concepts/raider_top.jpg",
+      "sha256": "ef63dc286f1f9f5e1e8d5c70969b8885a7ab31d99dfde6964ebe04ceca3f6d58"
+    }
+  ],
+  "parameters": {
+    "texture": "4k",
+    "pbr": true,
+    "polycount": 150000,
+    "topology": "triangle",
+    "variants": 1
+  },
+  "job": {
+    "id": "20261004-212754-7518",
+    "providerId": "01a108d0-f720-7768-8613-e8b85f475acd",
+    "started": "2026-10-04T21:27:54Z",
+    "finished": "2026-10-04T21:33:18Z",
+    "cost": 0.6,
+    "credits": 30
+  },
+  "terms": {
+    "url": "https://www.meshy.ai/terms-of-use"
+  },
+  "output": {
+    "sha256": "8bea4d5c1aeca924d90e5c7c9bfd0d2ad14f6a3daa96b5336b9e56da0bff863b",
+    "variant": 1,
+    "accepted": "2026-10-04T21:35:21Z",
+    "pith": "0.1.0"
+  }
+}

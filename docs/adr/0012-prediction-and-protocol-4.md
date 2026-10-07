@@ -1,6 +1,6 @@
 # 0012. Own-ship prediction, protocol 4 and a harder server
 
-- Status: Proposed
+- Status: Accepted (2026-10-04, by the developer)
 - Date: 2026-10-03
 
 ## Context

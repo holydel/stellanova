@@ -1,0 +1,30 @@
+{
+  "kind": "splash",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Concept art of a sci-fi strategy game's colony screen: a small frontier colony on the rocky, airless surface of a moon of a gas giant, seen from above at about 45 degrees. Five buildings of one family (modular and industrial, steel-gray plated walls, dark slate frames, thin electric-blue light strips and windows), each on its own flat octagonal foundation pad, spaced neatly apart across the middle of the picture and linked by thin paths: a metal mine with a lattice drill tower over a shaft, a helium-3 extractor with a tall mast and spherical tanks, a chip fab (a long, low clean-room hall with radiator fins on its roof), a depot of stacked cargo containers under a gantry crane, and the command center, the tallest, a tower with a sensor dish and a small launch pad. The ground: gray rock and fine dust, a few small craters and low ridges. The horizon runs across the upper part of the picture; above it a huge banded gas giant in pale blue and slate rises big in the black sky, lit from one side by a distant sun, with pin-sharp stars. The lower third of the picture is open, flat, calm ground with nothing on it, left free for interface cards. No vehicles, no people.",
+  "style": "Minimal, calm and neat, with a lot of empty dark space. Palette: space and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail, pin-sharp stars; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no logos, no interface, no lens flares.",
+  "prompt": "Concept art of a sci-fi strategy game's colony screen: a small frontier colony on the rocky, airless surface of a moon of a gas giant, seen from above at about 45 degrees. Five buildings of one family (modular and industrial, steel-gray plated walls, dark slate frames, thin electric-blue light strips and windows), each on its own flat octagonal foundation pad, spaced neatly apart across the middle of the picture and linked by thin paths: a metal mine with a lattice drill tower over a shaft, a helium-3 extractor with a tall mast and spherical tanks, a chip fab (a long, low clean-room hall with radiator fins on its roof), a depot of stacked cargo containers under a gantry crane, and the command center, the tallest, a tower with a sensor dish and a small launch pad. The ground: gray rock and fine dust, a few small craters and low ridges. The horizon runs across the upper part of the picture; above it a huge banded gas giant in pale blue and slate rises big in the black sky, lit from one side by a distant sun, with pin-sharp stars. The lower third of the picture is open, flat, calm ground with nothing on it, left free for interface cards. No vehicles, no people.\n\nMinimal, calm and neat, with a lot of empty dark space. Palette: space and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail, pin-sharp stars; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no logos, no interface, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "16:9",
+    "size": "2K",
+    "variants": 2
+  },
+  "job": {
+    "id": "20261004-182647-f750",
+    "providerId": "",
+    "started": "2026-10-04T18:26:47Z",
+    "finished": "2026-10-04T18:27:04Z",
+    "cost": 0.205038
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "21b5da9ca7407a48c8a21a5d8cee3f5b4a50ebaaf494dddcaf2fec0d6c7770a9",
+    "variant": 1,
+    "accepted": "2026-10-04T20:19:26Z",
+    "pith": "0.1.0"
+  }
+}

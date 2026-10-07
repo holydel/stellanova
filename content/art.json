@@ -1,0 +1,23 @@
+{
+	"entries": [
+		{"name": "splash", "image": "generated/splash/menu.png", "maxSize": 1920, "mips": true},
+		{"name": "brdf", "brdf": 128},
+		{"name": "colony_light", "environment": "light/colony.hdr", "size": 64, "skySize": 0},
+		{"name": "mine", "model": "generated/models/mine.glb", "maxSize": 1024},
+		{"name": "extractor", "model": "generated/models/extractor.glb", "maxSize": 1024},
+		{"name": "fab", "model": "generated/models/fab.glb", "maxSize": 1024},
+		{"name": "depot", "model": "generated/models/depot.glb", "maxSize": 1024},
+		{"name": "command", "model": "generated/models/command.glb", "maxSize": 1024},
+		{"name": "crater", "model": "generated/models/crater.glb", "maxSize": 1024},
+		{"name": "lancer", "model": "generated/models/lancer.glb", "maxSize": 1024},
+		{"name": "raider", "model": "generated/models/raider.glb", "maxSize": 1024},
+		{"name": "icon.laser_s", "image": "generated/icons/laser_s.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.plasma_s", "image": "generated/icons/plasma_s.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.plasma_charge_s", "image": "generated/icons/plasma_charge_s.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.shield_booster_s", "image": "generated/icons/shield_booster_s.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.capacitor_battery_s", "image": "generated/icons/capacitor_battery_s.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.metal", "image": "generated/icons/metal.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.he3", "image": "generated/icons/he3.jpg", "maxSize": 256, "mips": true},
+		{"name": "icon.chips", "image": "generated/icons/chips.jpg", "maxSize": 256, "mips": true}
+	]
+}

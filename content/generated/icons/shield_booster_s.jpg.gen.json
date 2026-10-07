@@ -1,0 +1,30 @@
+{
+  "kind": "icon",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "A small ship's shield booster module: a compact armored box with a round emitter dish on top, the dish's rim glowing pale cyan, power couplings on its sides; steel-gray and dark slate.",
+  "style": "An item picture for a sci-fi game's inventory, read as small as 64 pixels: one object alone, whole, centered and filling about three quarters of the square, in a three-quarter view from above, on a plain dark background, a soft radial gradient from deep slate blue (#242D41) in the middle to navy black (#0A0F16) at the edges. A bold, simple silhouette and clear shapes; a cool key light from the upper left and a pale cyan rim light (#71B2D8) on the far edges. Palette: steel grays (#686A79, #97999F), dark slate frames (#192130, #3E4D6B), electric blue to pale cyan (#4E87BB, #ACDBE9) as the only bright accent. Crisp and sharp, clean hard edges, realistic materials, cinematic game art. No text, no lettering, no numbers, no logos, no interface, no frame or border, no lens flares.",
+  "prompt": "A small ship's shield booster module: a compact armored box with a round emitter dish on top, the dish's rim glowing pale cyan, power couplings on its sides; steel-gray and dark slate.\n\nAn item picture for a sci-fi game's inventory, read as small as 64 pixels: one object alone, whole, centered and filling about three quarters of the square, in a three-quarter view from above, on a plain dark background, a soft radial gradient from deep slate blue (#242D41) in the middle to navy black (#0A0F16) at the edges. A bold, simple silhouette and clear shapes; a cool key light from the upper left and a pale cyan rim light (#71B2D8) on the far edges. Palette: steel grays (#686A79, #97999F), dark slate frames (#192130, #3E4D6B), electric blue to pale cyan (#4E87BB, #ACDBE9) as the only bright accent. Crisp and sharp, clean hard edges, realistic materials, cinematic game art. No text, no lettering, no numbers, no logos, no interface, no frame or border, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 4
+  },
+  "job": {
+    "id": "20261004-212705-8b64",
+    "providerId": "",
+    "started": "2026-10-04T21:27:05Z",
+    "finished": "2026-10-04T21:27:15Z",
+    "cost": 0.274003
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "23720e45d634d31b5d5625e1a625741207ce6f86e2978ed4a015239b00856295",
+    "variant": 4,
+    "accepted": "2026-10-04T21:27:47Z",
+    "pith": "0.1.0"
+  }
+}

@@ -21,7 +21,8 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	input.last = 42;
 	input.count = 2;
 	input.controls[0] = {-0.5f, 1.0f};
-	input.controls[1] = {0.25f, -1.0f, true};
+	input.controls[1] = {0.25f, -1.0f};
+	input.target = 99;
 	std::vector<u8> bytes = sim::Write(input);
 	CHECK(sim::TypeOf(bytes.data(), bytes.size()) == sim::MessageType::Input);
 	sim::Input back;
@@ -32,7 +33,7 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	CHECK(back.controls[0].turn == sim::Quantize({-0.5f, 1.0f}).turn);
 	CHECK(back.controls[0].thrust == 1.0f);
 	CHECK(back.controls[1].thrust == -1.0f);
-	CHECK(back.controls[1].fire);
+	CHECK(back.target == 99);
 	sim::Welcome welcome;
 	CHECK(!sim::Read(bytes.data(), bytes.size(), welcome));  // another type
 	CHECK(!sim::Read(bytes.data(), bytes.size() - 1, back)); // cut short
@@ -47,8 +48,7 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	bytes = sim::Write(input);
 	CHECK(!sim::Read(bytes.data(), bytes.size(), back));
 	// Nothing on the wire can be NaN or out of range.
-	const sim::ShipControls odd =
-		sim::Quantize({std::numeric_limits<f32>::quiet_NaN(), 7.0f, false});
+	const sim::ShipControls odd = sim::Quantize({std::numeric_limits<f32>::quiet_NaN(), 7.0f});
 	CHECK(odd.turn == 0.0f);
 	CHECK(odd.thrust == 1.0f);
 
@@ -58,12 +58,17 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	ship.team = sim::BOTS;
 	const sim::ShipHandle handle = sim::SpawnShip(*world, ship);
 	sim::GetShip(*world, handle)->shield = 0.5f * ship.hull.shield;
-	world->shots[3] = {{1.0f, 1.0f}, {0.0f, 90.0f}, 1.0f, 0.3f, 1.0f, handle, sim::BOTS};
+	world->shots[3].position = {1.0f, 1.0f};
+	world->shots[3].velocity = {0.0f, 90.0f};
+	world->shots[3].life = 1.0f;
+	world->shots[3].owner = handle;
+	world->shots[3].team = sim::BOTS;
 	auto snapshot = std::make_unique<sim::Snapshot>();
 	sim::TakeSnapshot(*world, *snapshot);
 	snapshot->wave = 4;
 	snapshot->input = 17;
-	snapshot->cooldown = 0.08f;
+	snapshot->own.capacitor = 1.5f;
+	snapshot->own.flags[1] = sim::MODULE_OFFLINE;
 	const std::vector<u8> snapshotBytes = sim::Write(*snapshot);
 	CHECK(snapshotBytes.size() <= net::MAX_UNRELIABLE_BYTES);
 	auto read = std::make_unique<sim::Snapshot>();
@@ -78,7 +83,9 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	CHECK(state->shield == 128);
 	CHECK(read->wave == 4);
 	CHECK(read->input == 17);
-	CHECK(read->cooldown == 0.08f);
+	CHECK(read->own.capacitor == 1.5f);
+	CHECK(read->own.flags[1] == sim::MODULE_OFFLINE);
+	CHECK(state->beam == sim::NO_BEAM);
 	REQUIRE(read->shotCount == 1);
 	CHECK(read->shots[0].team == sim::BOTS);
 	// A sliver of health is not a wreck.
@@ -88,7 +95,7 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	// A float that is not finite refuses the whole message.
 	std::vector<u8> poisoned = snapshotBytes;
 	const f32 nan = std::numeric_limits<f32>::quiet_NaN();
-	const usize angle = 1 + 8 + 4 + 4 + 4 + 4 + 4 + 8 + 8; // the first ship's angle
+	const usize angle = 1 + 8 + 4 + 4 + 30 + 4 + 4 + 8 + 8; // the first ship's angle
 	std::memcpy(poisoned.data() + angle, &nan, sizeof(nan));
 	CHECK(!sim::Read(poisoned.data(), poisoned.size(), *read));
 
@@ -102,6 +109,34 @@ TEST_CASE("protocol: messages read back, and refuse other bytes")
 	CHECK(refusalBack.version == sim::PROTOCOL_VERSION);
 	bytes[1] = 9; // no such reason
 	CHECK(!sim::Read(bytes.data(), bytes.size(), refusalBack));
+
+	// A Login with a sign-in's proof, and the Signed that answers it.
+	const sim::Login login{"0123456789abcdef0123456789abcdef", "Ann", "steam",
+	                       std::string(5120, 'a'), "n0nce"};
+	bytes = sim::Write(login);
+	sim::Login loginBack;
+	REQUIRE(sim::Read(bytes.data(), bytes.size(), loginBack));
+	CHECK(loginBack.provider == "steam");
+	CHECK(loginBack.proof.size() == 5120);
+	CHECK(loginBack.nonce == "n0nce");
+	sim::Login tooLong = login;
+	tooLong.proof.assign(sim::MAX_PROOF_BYTES + 1, 'a');
+	bytes = sim::Write(tooLong);
+	CHECK(!sim::Read(bytes.data(), bytes.size(), loginBack));
+	sim::Signed sign;
+	sign.key = login.key;
+	sign.provider = "steam";
+	sign.error = "error.signin_failed";
+	sign.offers = {{"google", "https://accounts.google.com/o/oauth2/v2/auth?client_id=x"}};
+	bytes = sim::Write(sign);
+	sim::Signed signBack;
+	REQUIRE(sim::Read(bytes.data(), bytes.size(), signBack));
+	CHECK(signBack.key == sign.key);
+	CHECK(signBack.provider == "steam");
+	CHECK(signBack.error == "error.signin_failed");
+	REQUIRE(signBack.offers.size() == 1);
+	CHECK(signBack.offers[0].url == sign.offers[0].url);
+	CHECK(std::string(sim::MessageName(u32(sim::MessageType::Signed))) == "signed");
 }
 
 TEST_CASE("protocol: the field, shots and events read back")
@@ -110,7 +145,10 @@ TEST_CASE("protocol: the field, shots and events read back")
 	welcome.ship = 7;
 	welcome.respawn = 2.5f;
 	welcome.hull.radius = 2.5f;
-	welcome.weapon.interval = 0.2f;
+	welcome.kind = sim::MatchKind::Battle;
+	welcome.ring = 3;
+	welcome.modules = {"plasma_s", ""};
+	welcome.crates = {{5, {2.0f, 3.0f}}};
 	welcome.autopilot = true;
 	welcome.rocks = {{{1.0f, 2.0f}, 3.0f, 3.0f}, {{-5.0f, 6.0f}, 1.5f, 0.0f}};
 	std::vector<u8> bytes = sim::Write(welcome);
@@ -119,7 +157,13 @@ TEST_CASE("protocol: the field, shots and events read back")
 	CHECK(welcomeBack.respawn == 2.5f);
 	CHECK(welcomeBack.hull.radius == 2.5f);
 	CHECK(welcomeBack.hull.maxSpeed == sim::HullClass{}.maxSpeed);
-	CHECK(welcomeBack.weapon.interval == 0.2f);
+	CHECK(welcomeBack.kind == sim::MatchKind::Battle);
+	CHECK(welcomeBack.ring == 3);
+	REQUIRE(welcomeBack.modules.size() == 2);
+	CHECK(welcomeBack.modules[0] == "plasma_s");
+	CHECK(welcomeBack.modules[1].empty());
+	REQUIRE(welcomeBack.crates.size() == 1);
+	CHECK(welcomeBack.crates[0].index == 5);
 	CHECK(welcomeBack.autopilot);
 	REQUIRE(welcomeBack.rocks.size() == 2);
 	CHECK(welcomeBack.rocks[1].position.x == -5.0f);
@@ -128,27 +172,26 @@ TEST_CASE("protocol: the field, shots and events read back")
 	sim::Input input;
 	input.last = 1;
 	input.count = 1;
-	input.controls[0] = {0.0f, 1.0f, true};
+	input.controls[0] = {0.0f, 1.0f};
 	bytes = sim::Write(input);
 	sim::Input inputBack;
 	REQUIRE(sim::Read(bytes.data(), bytes.size(), inputBack));
-	CHECK(inputBack.controls[0].fire);
-	bytes.back() = 2; // fire is 0 or 1
+	bytes.pop_back(); // the target cut short
 	CHECK(!sim::Read(bytes.data(), bytes.size(), inputBack));
 
 	sim::Events events;
 	events.tick = 9;
 	events.events = {{sim::EventType::RockBroken, 7, 0, 1, {-5.0f, 6.0f}, 1.5f},
-	                 {sim::EventType::HullHit, 7, 9, sim::NO_ROCK, {1.0f, 2.0f}, 1.0f}};
+	                 {sim::EventType::HullHit, 7, 9, sim::NO_INDEX, {1.0f, 2.0f}, 1.0f}};
 	bytes = sim::Write(events);
 	sim::Events eventsBack;
 	REQUIRE(sim::Read(bytes.data(), bytes.size(), eventsBack));
 	REQUIRE(eventsBack.events.size() == 2);
 	CHECK(eventsBack.events[0].type == sim::EventType::RockBroken);
-	CHECK(eventsBack.events[0].rock == 1);
+	CHECK(eventsBack.events[0].index == 1);
 	CHECK(eventsBack.events[1].type == sim::EventType::HullHit);
 	CHECK(eventsBack.events[1].other == 9);
-	CHECK(eventsBack.events[1].rock == sim::NO_ROCK);
+	CHECK(eventsBack.events[1].index == sim::NO_INDEX);
 	bytes[1 + 8 + 4] = 99; // no such event
 	CHECK(!sim::Read(bytes.data(), bytes.size(), eventsBack));
 
@@ -190,7 +233,10 @@ TEST_CASE("server: a local client joins, flies its ship, and leaves")
 	CHECK(welcome.respawn == match.respawn);
 	CHECK(welcome.rocks.size() == sim::AsteroidFieldDesc{}.count);
 
-	CHECK(welcome.hull.maxSpeed == sim::HullClass{}.maxSpeed);
+	CHECK(welcome.hull.maxSpeed == sim::GetCatalog().FindHull("lancer")->maxSpeed);
+	CHECK(welcome.kind == sim::MatchKind::Skirmish);
+	REQUIRE(welcome.modules.size() == 2);
+	CHECK(welcome.modules[0] == "plasma_s");
 	CHECK(!welcome.autopilot);
 
 	// Full thrust for a second: 30 ticks, a snapshot after each, and our
@@ -223,15 +269,22 @@ TEST_CASE("server: a local client joins, flies its ship, and leaves")
 	CHECK(latest->input > 25); // our controls, applied as they came
 	CHECK(latest->ships[0].id == welcome.ship);
 
-	// Firing: Events tell of each shot. Our own shots stay out of our
-	// snapshots: our client draws them from its prediction.
+	// An enemy within reach: our turret fires on its own, and Events tell
+	// of each shot; snapshots carry them.
+	const sim::Ship* own = sim::GetShip(*host.GetWorld(), sim::ShipFromId(welcome.ship));
+	REQUIRE(own);
+	sim::Ship enemy;
+	enemy.team = sim::BOTS;
+	enemy.position = own->position + sim::Vec2{0.0f, 40.0f};
+	sim::SpawnShip(*host.GetWorld(), enemy);
 	++input.last;
-	input.controls[0] = {0.0f, 0.0f, true};
-	const std::vector<u8> fire = sim::Write(input);
-	REQUIRE(net::Send(client, fire.data(), u32(fire.size()), net::Delivery::Unreliable));
-	for (int i = 0; i < 30; ++i)
+	input.controls[0] = {};
+	const std::vector<u8> stop = sim::Write(input);
+	REQUIRE(net::Send(client, stop.data(), u32(stop.size()), net::Delivery::Unreliable));
+	for (int i = 0; i < 90; ++i)
 		host.Update(1.0f / 60.0f);
 	u32 fired = 0;
+	u32 withShots = 0;
 	while (net::Poll(client, event))
 	{
 		sim::Events events;
@@ -240,16 +293,12 @@ TEST_CASE("server: a local client joins, flies its ship, and leaves")
 			for (const sim::EventState& happened : events.events)
 				fired += happened.type == sim::EventType::Fired && happened.ship == welcome.ship;
 		}
-		else
-			sim::Read(event.data, event.size, *latest);
+		else if (sim::Read(event.data, event.size, *latest))
+			withShots += latest->shotCount > 0;
 	}
 	CHECK(fired >= 3);
-	CHECK(latest->shotCount == 0);
+	CHECK(withShots > 0);
 	CHECK(latest->input == input.last);
-	u32 flying = 0;
-	for (const sim::Shot& shot : host.GetWorld()->shots)
-		flying += shot.life > 0.0f;
-	CHECK(flying >= 3);
 
 	// What went out and came in, by type, for the server's stats.
 	const sim::MessageCounts& sent = host.GetSent();
@@ -336,7 +385,7 @@ TEST_CASE("server: waves of bots come once a player is there, each bigger than t
 		if (!world.shipIds[slot] || ship.team != sim::BOTS)
 			continue;
 		CHECK(sim::Length(ship.position) > 80.0f);
-		CHECK(ship.hull.health < sim::HullClass{}.health);
+		CHECK(ship.hull.health < sim::GetCatalog().FindHull("lancer")->hull);
 		for (u32 r = 0; r < world.rockCount; ++r)
 			CHECK(sim::Length(ship.position - world.rocks[r].position) >=
 			      world.rocks[r].radius + ship.hull.radius);
@@ -808,20 +857,17 @@ TEST_CASE("server: bots attack a player who holds still")
 	REQUIRE(host.Start("loopback:attack", match));
 	net::Client client;
 	const sim::Welcome welcome = Join(host, client, "loopback:attack");
-	std::vector<sim::EventState> events;
-	Run(host, client, 20.0f, &events);
-	u32 hits = 0;
-	u32 shots = 0;
-	for (const sim::EventState& event : events)
+	// Lasers burn without events: the shield tells.
+	const sim::Ship* ship = sim::GetShip(*host.GetWorld(), sim::ShipFromId(welcome.ship));
+	REQUIRE(ship);
+	f32 lowest = ship->shield;
+	for (u32 i = 0; i < 20; ++i)
 	{
-		hits +=
-			(event.type == sim::EventType::ShieldHit || event.type == sim::EventType::HullHit) &&
-			event.ship == welcome.ship && event.other != 0;
-		shots += event.type == sim::EventType::Fired && event.ship != welcome.ship;
+		Run(host, client, 1.0f);
+		lowest = std::min(lowest, ship->shield);
 	}
-	MESSAGE("bots fired ", shots, " shots, ", hits, " hit the player");
-	CHECK(shots >= 5);
-	CHECK(hits > 0);
+	MESSAGE("the player's shield went down to ", lowest, " of ", ship->hull.shield);
+	CHECK(lowest < ship->hull.shield);
 	net::Close(client);
 	host.Stop();
 }

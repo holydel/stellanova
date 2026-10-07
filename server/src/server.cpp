@@ -1,4 +1,5 @@
 #include <sn/server/server.h>
+#include <sn/sim/catalog.h>
 
 #include <ph/core/log.h>
 #include <ph/core/profile.h>
@@ -6,6 +7,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <ctime>
+#include <random>
 #include <string>
 
 namespace sn::server
@@ -16,53 +19,23 @@ static_assert(sim::MAX_SNAPSHOT_BYTES <= net::MAX_UNRELIABLE_BYTES);
 
 namespace
 {
-// The bots' fighters, weaker and slower than a player's ship: placeholders
-// until blueprints (docs/vision.md).
-sim::HullClass BotHull()
-{
-	sim::HullClass hull;
-	hull.acceleration = 13.0f;
-	hull.maxSpeed = 16.0f; // a player's ship flies 40
-	hull.turnRate = 2.6f;
-	hull.health = 4.0f;
-	hull.shield = 3.0f;
-	hull.shieldRegen = 1.0f;
-	hull.shieldDelay = 3.0f;
-	return hull;
-}
-
-sim::WeaponClass BotWeapon()
-{
-	sim::WeaponClass weapon;
-	weapon.interval = 0.6f;
-	weapon.speed = 35.0f; // slow enough to dodge
-	weapon.life = 2.4f;   // as far as faster shots go: 84 m
-	return weapon;
-}
-
-// Bots aim better wave after wave.
-bots::PilotSkill SkillFor(u32 wave)
-{
-	bots::PilotSkill skill;
-	skill.aimError = std::max(0.03f, 0.12f - 0.015f * f32(std::max(wave, 1u) - 1));
-	return skill;
-}
-
-constexpr f32 CHAT_BURST = 5.0f; // lines a player may say at once
-constexpr f32 CHAT_RATE = 1.0f;  // more lines a second
-constexpr u32 DEFAULT_BOTS = 3;  // /add_bots without a count
+constexpr f32 CHAT_BURST = 5.0f;    // lines a player may say at once
+constexpr f32 CHAT_RATE = 1.0f;     // more lines a second
+constexpr f32 REQUEST_BURST = 5.0f; // requests a client may make at once
+constexpr f32 REQUEST_RATE = 2.0f;  // more a second
+constexpr u32 DEFAULT_BOTS = 3;     // /add_bots without a count
+constexpr u32 MAX_CLIENTS = 64;     // the skirmish has its own limit within
+constexpr u32 LEADERBOARD_SIZE = 100;
+// Accounts the store may hold: newcomers past it are turned away (ADR 0014).
+constexpr u32 MAX_ACCOUNTS = 10'000;
 // Newcomers: the time to say Hello, and a refused one's for its Refusal to go out.
 constexpr f32 HELLO_SECONDS = 10.0f;
 constexpr f32 REFUSED_SECONDS = 1.0f;
-// A player's controls kept before they are applied, one set a tick; more
-// than MAX_LEAD waiting (a burst after a stall) and the oldest go, so that
-// its ship never lags its controls by long.
-constexpr u32 MAX_CLIENT_MESSAGE = 2048; // bytes: the largest, a chat line, is about 200
+// Clients send controls, names, chat lines and requests: a few hundred
+// bytes; a Login with a sign-in's proof, a few thousand.
+constexpr u32 MAX_CLIENT_MESSAGE = 12 * 1024;
+// A player's controls kept before they are applied, one set a tick.
 constexpr u32 MAX_QUEUED = 8;
-constexpr u32 MAX_LEAD = 3;
-// Controls that stop coming (a page in the background, a stalled link) let
-// go of the stick after this many ticks, rather than flying on.
-constexpr u32 IDLE_TICKS = 15;
 
 // Names clash without regard to the case of Latin letters.
 bool SameName(std::string_view a, std::string_view b)
@@ -83,6 +56,23 @@ void SplitCommand(std::string_view line, std::string_view& name, std::string_vie
 		argument.remove_prefix(1);
 }
 
+// 128 random bits as hex: a key handed out at sign-in.
+std::string NewKey()
+{
+	std::random_device random;
+	std::string key;
+	while (key.size() < sim::KEY_BYTES)
+	{
+		const u32 bits = random();
+		for (u32 i = 0; i < 8 && key.size() < sim::KEY_BYTES; ++i)
+			key += "0123456789abcdef"[(bits >> (i * 4)) & 15];
+	}
+	return key;
+}
+
+// "Pilot 3": the name a client gets before it has one of its own.
+bool IsDefaultName(std::string_view name) { return name.starts_with("Pilot "); }
+
 // A count of 1 to 999; 0 for anything else.
 u32 ParseCount(std::string_view text)
 {
@@ -97,30 +87,61 @@ u32 ParseCount(std::string_view text)
 }
 } // namespace
 
-bool Server::Start(const char* address, const MatchDesc& desc)
+bool Server::Start(const char* address, const MatchDesc& desc, const HubDesc& hubDesc)
 {
 	Stop();
 	listener = net::Listen(address);
 	if (!listener)
 		return false;
-	// Clients send controls, names and chat lines: a few hundred bytes. What
-	// a peer can make the server hold follows this (pith ADR 0036).
+	// What a peer can make the server hold follows this (pith ADR 0036).
 	net::ServerLimits limits;
 	limits.maxIncomingReliableBytes = MAX_CLIENT_MESSAGE;
 	net::SetLimits(listener, limits);
-	match = desc;
 	started = desc;
+	hub = hubDesc;
+	startedAt = Now();
+	if (!hub.admin.empty())
+	{
+		adminListener = net::Listen(hub.admin.c_str());
+		if (adminListener)
+		{
+			net::ServerLimits adminLimits;
+			adminLimits.maxIncomingReliableBytes = 64 * 1024;
+			net::SetLimits(adminListener, adminLimits);
+		}
+		else
+			PH_LOG_ERROR("server: no admin listener at %s", hub.admin.c_str());
+	}
 	newcomers.clear();
-	world = std::make_unique<sim::World>();
-	sim::MakeAsteroidField(*world, match.field);
-	wave = 0;
-	untilWave = match.waveDelay;
-	seed = match.seed;
-	sinceTick = 0.0f;
+	clients.clear();
+	matches.clear();
+	matches.push_back(NewSkirmish(desc));
+	accounts.clear();
+	summaries.clear();
+	leaderboard = {};
+	leaderboardChanged = false;
+	accountCount = 0;
 	sent = {};
 	received = {};
-	PH_LOG_INFO("server: listening at %s; %u rocks%s", address, world->rockCount,
-	            match.waves ? "; waves" : "");
+	if (hub.store)
+	{
+		// The leaderboard and the admin's summaries from every account kept.
+		const std::vector<std::string> ids = hub.store->List();
+		accountCount = u32(ids.size());
+		for (const std::string& id : ids)
+		{
+			std::string json;
+			sim::Account account;
+			if (!hub.store->Load(id, json) || !sim::FromJson(json, account))
+				continue;
+			UpdateLeaderboard(id, account);
+			summaries[id] = SummaryOf(account);
+		}
+		leaderboardChanged = true;
+	}
+	PH_LOG_INFO("server: listening at %s; %u rocks%s%s%s%s", address, matches[0]->world->rockCount,
+	            desc.waves ? "; waves" : "", hub.store ? "; the hub is open" : "",
+	            hub.signIn ? "; sign-ins" : "", adminListener ? "; the admin listens" : "");
 	return true;
 }
 
@@ -128,13 +149,49 @@ void Server::Stop()
 {
 	if (!listener)
 		return;
+	// Battles in progress end as returned: their fleets come home.
+	while (matches.size() > 1)
+	{
+		matches.back()->returning = true;
+		EndBattle(*matches.back());
+	}
+	WriteLeaderboard();
+	if (adminListener)
+		net::Close(adminListener);
+	adminListener = {};
 	net::Close(listener);
 	listener = {};
-	world.reset();
-	players.clear();
+	matches.clear();
+	clients.clear();
 	newcomers.clear();
-	enemies.clear();
-	wave = 0;
+	accounts.clear();
+}
+
+const sim::World* Server::GetWorld() const
+{
+	return matches.empty() ? nullptr : matches[0]->world.get();
+}
+
+sim::World* Server::GetWorld() { return matches.empty() ? nullptr : matches[0]->world.get(); }
+
+u32 Server::GetWave() const { return matches.empty() ? 0 : matches[0]->wave; }
+
+u32 Server::GetPlayerCount() const { return matches.empty() ? 0 : u32(matches[0]->players.size()); }
+
+u32 Server::GetBotCount() const { return matches.empty() ? 0 : u32(matches[0]->enemies.size()); }
+
+sim::World* Server::GetBattleWorld(u32 index)
+{
+	return index + 1 < matches.size() ? matches[index + 1]->world.get() : nullptr;
+}
+
+i64 Server::Now() const { return hub.clock ? hub.clock() : i64(std::time(nullptr)); }
+
+Server::Client* Server::FindClient(net::PeerId peer)
+{
+	const auto found = std::find_if(clients.begin(), clients.end(),
+	                                [peer](const Client& c) { return c.peer == peer; });
+	return found == clients.end() ? nullptr : &*found;
 }
 
 void Server::Update(f32 dt)
@@ -155,92 +212,83 @@ void Server::Update(f32 dt)
 		}
 	}
 	Admit(dt);
-	// Newcomers, once their Name had its chance (it follows Hello), and the
-	// chat's allowance.
-	for (Player& player : players)
+	PollSignIns();
+	UpdateAdmin();
+	// The skirmish's newcomers, once their Name had its chance (it follows
+	// Hello); allowances.
+	for (Client& client : clients)
 	{
-		player.chatLines = std::min(CHAT_BURST, player.chatLines + std::min(dt, 1.0f) * CHAT_RATE);
-		if (player.announced)
+		const f32 step = std::min(dt, 1.0f);
+		client.chatLines = std::min(CHAT_BURST, client.chatLines + step * CHAT_RATE);
+		client.requests = std::min(REQUEST_BURST, client.requests + step * REQUEST_RATE);
+		if (client.announced || client.match != matches[0].get())
 			continue;
-		player.announced = true;
-		PH_LOG_INFO("server: player %u is %s", player.peer, player.name.c_str());
-		NoticeAll("chat.joined", player.name);
+		client.announced = true;
+		PH_LOG_INFO("server: player %u is %s", client.peer, client.name.c_str());
+		NoticeAll(*matches[0], "chat.joined", client.name);
 	}
-	if (players.empty() && match.resetWhenEmpty)
+	for (usize m = 0; m < matches.size(); ++m)
+		Run(*matches[m], dt);
+	for (usize m = 1; m < matches.size();)
 	{
-		sinceTick = 0.0f;
-		return; // a fresh match, waiting for someone
+		if (BattleOver(*matches[m]))
+			EndBattle(*matches[m]); // removes it
+		else
+			++m;
 	}
-	// A long stall (a breakpoint, the app in the background) skips time
-	// rather than running hundreds of ticks.
-	sinceTick += std::min(dt, 0.25f);
-	while (sinceTick >= sim::TICK_SECONDS)
-	{
-		sinceTick -= sim::TICK_SECONDS;
-		ApplyControls();
-		{
-			PH_PROFILE_SCOPE("Server.Bots");
-			for (Enemy& enemy : enemies)
-				sim::SetControls(*world, enemy.ship,
-				                 bots::Fly(*world, enemy.ship, enemy.pilot, skill));
-			if (match.autopilot)
-			{
-				bots::PilotSkill ace;
-				ace.aimError = 0.02f;
-				for (Player& player : players)
-					sim::SetControls(*world, player.ship,
-					                 bots::Fly(*world, player.ship, player.pilot, ace));
-			}
-		}
-		{
-			PH_PROFILE_SCOPE("Sim.Step");
-			sim::Step(*world);
-		}
-		Referee();
-		PH_PROFILE_SCOPE("Server.Send");
-		SendEvents();
-		SendSnapshots();
-	}
+	WriteLeaderboard();
+}
+
+void Server::WriteLeaderboard()
+{
+	if (!leaderboardChanged || hub.leaderboard.empty())
+		return;
+	leaderboardChanged = false;
+	if (!WriteWhole(hub.leaderboard,
+	                leaderboard.Json(sim::GetCatalog().season, Now(), LEADERBOARD_SIZE)))
+		PH_LOG_WARN("server: cannot write the leaderboard to %s", hub.leaderboard.c_str());
 }
 
 void Server::OnMessage(net::PeerId peer, const u8* data, u32 size)
 {
-	const auto player = std::find_if(players.begin(), players.end(),
-	                                 [peer](const Player& p) { return p.peer == peer; });
 	received.Add(data, size);
+	Client* client = FindClient(peer);
 	switch (sim::TypeOf(data, size))
 	{
 		case sim::MessageType::Hello: OnHello(peer, data, size); return;
 		case sim::MessageType::Input:
 		{
 			sim::Input input;
-			if (player == players.end() || !sim::Read(data, size, input))
-				return;
-			// Each number once, in order: a message repeats the newest few.
-			const u32 first = input.last - (input.count - 1);
-			for (u32 i = 0; i < input.count; ++i)
-			{
-				if (first + i <= player->received)
-					continue;
-				player->queued.push_back({first + i, input.controls[i]});
-				player->received = first + i;
-			}
-			if (player->queued.size() > MAX_QUEUED)
-				player->queued.erase(player->queued.begin(), player->queued.end() - MAX_QUEUED);
+			if (client && sim::Read(data, size, input))
+				OnInput(*client, input);
 			return;
 		}
 		case sim::MessageType::Name:
 		{
 			sim::Name name;
-			if (player != players.end() && sim::Read(data, size, name))
-				OnName(*player, name.name);
+			if (client && sim::Read(data, size, name))
+				OnName(*client, name.name);
 			return;
 		}
 		case sim::MessageType::Say:
 		{
 			sim::Say say;
-			if (player != players.end() && sim::Read(data, size, say))
-				OnSay(*player, say.text);
+			if (client && sim::Read(data, size, say))
+				OnSay(*client, say.text);
+			return;
+		}
+		case sim::MessageType::Login:
+		{
+			sim::Login login;
+			if (client && sim::Read(data, size, login))
+				OnLogin(*client, login);
+			return;
+		}
+		case sim::MessageType::Request:
+		{
+			sim::Request request;
+			if (client && sim::Read(data, size, request))
+				OnRequest(*client, request.json);
 			return;
 		}
 		default: return; // what a server does not take
@@ -250,8 +298,7 @@ void Server::OnMessage(net::PeerId peer, const u8* data, u32 size)
 void Server::OnHello(net::PeerId peer, const u8* data, u32 size)
 {
 	// Hello is reliable: a second one says nothing new.
-	if (std::any_of(players.begin(), players.end(),
-	                [peer](const Player& p) { return p.peer == peer; }))
+	if (FindClient(peer))
 		return;
 	const auto newcomer = std::find_if(newcomers.begin(), newcomers.end(),
 	                                   [peer](const Newcomer& n) { return n.peer == peer; });
@@ -265,25 +312,18 @@ void Server::OnHello(net::PeerId peer, const u8* data, u32 size)
 		net::Disconnect(listener, peer);
 		return;
 	}
-	if (hello.version != sim::PROTOCOL_VERSION)
+	if (hello.version != sim::PROTOCOL_VERSION || hello.catalog != sim::GetCatalog().hash)
 	{
-		PH_LOG_INFO("server: peer %u speaks protocol %u, not %u", peer, hello.version,
-		            sim::PROTOCOL_VERSION);
+		PH_LOG_INFO("server: peer %u speaks protocol %u (catalog %08x), not %u (%08x)", peer,
+		            hello.version, hello.catalog, sim::PROTOCOL_VERSION, sim::GetCatalog().hash);
 		Refuse(peer, sim::RefusalReason::Version);
 		return;
 	}
-	if (players.size() >= match.maxPlayers)
+	const bool skirmish = hello.joining == sim::Joining::Skirmish;
+	if (clients.size() >= MAX_CLIENTS ||
+	    (skirmish && matches[0]->players.size() >= started.maxPlayers) || (!skirmish && !hub.store))
 	{
-		PH_LOG_INFO("server: peer %u turned away: %u players already", peer, u32(players.size()));
-		Refuse(peer, sim::RefusalReason::Full);
-		return;
-	}
-	// Side by side, 10 m apart, clear of rocks.
-	sim::Ship ship;
-	ship.position = FindRoom({10.0f * f32(players.size()), 0.0f}, ship.hull.radius + 1.0f);
-	const sim::ShipHandle handle = sim::SpawnShip(*world, ship);
-	if (!handle)
-	{
+		PH_LOG_INFO("server: peer %u turned away: %u clients already", peer, u32(clients.size()));
 		Refuse(peer, sim::RefusalReason::Full);
 		return;
 	}
@@ -297,50 +337,81 @@ void Server::OnHello(net::PeerId peer, const u8* data, u32 size)
 		if (UniqueName(candidate, nullptr) == candidate)
 			name = candidate;
 	}
-	Player& added = players.emplace_back();
+	Client& added = clients.emplace_back();
 	added.peer = peer;
-	added.ship = handle;
-	added.home = ship.position;
 	added.name = name;
-	sim::Welcome message;
-	message.ship = sim::ShipId(handle);
-	message.tick = world->tick;
-	message.respawn = match.respawn;
-	message.hull = ship.hull;
-	message.weapon = ship.weapon;
-	message.autopilot = match.autopilot;
-	message.rocks.assign(world->rocks, world->rocks + world->rockCount);
-	Send(peer, sim::Write(message), net::Delivery::Reliable);
-	PH_LOG_INFO("server: player %u joined", peer);
+	if (skirmish && !JoinSkirmish(added))
+	{
+		clients.pop_back();
+		Refuse(peer, sim::RefusalReason::Full);
+		return;
+	}
+	PH_LOG_INFO("server: peer %u joined %s", peer, skirmish ? "the skirmish" : "the hub");
 }
 
-void Server::OnName(Player& player, std::string_view wanted)
+void Server::OnInput(Client& client, const sim::Input& input)
+{
+	if (!client.match)
+		return;
+	for (Player& player : client.match->players)
+	{
+		if (player.peer != client.peer)
+			continue;
+		// Each number once, in order: a message repeats the newest few.
+		const u32 first = input.last - (input.count - 1);
+		for (u32 i = 0; i < input.count; ++i)
+		{
+			if (first + i <= player.received)
+				continue;
+			player.queued.push_back({first + i, input.controls[i]});
+			player.received = first + i;
+		}
+		if (player.queued.size() > MAX_QUEUED)
+			player.queued.erase(player.queued.begin(), player.queued.end() - MAX_QUEUED);
+		// Its turrets' choice: an enemy, or none.
+		const sim::ShipHandle target = sim::ShipFromId(input.target);
+		const sim::Ship* other =
+			input.target ? sim::GetShip(*client.match->world, target) : nullptr;
+		const sim::Ship* own = sim::GetShip(*client.match->world, player.ship);
+		sim::SetTarget(*client.match->world, player.ship,
+		               other && own && other->team != own->team ? target : sim::ShipHandle{});
+		return;
+	}
+}
+
+void Server::OnName(Client& client, std::string_view wanted)
 {
 	const std::string clean = sim::CleanText(wanted, sim::MAX_NAME_BYTES);
-	if (clean.empty() || clean == player.name)
+	if (clean.empty() || clean == client.name)
 		return;
-	const std::string name = UniqueName(clean, &player);
-	if (name == player.name)
+	const std::string name = UniqueName(clean, &client);
+	if (name == client.name)
 		return;
 	// After "joined" went out, a new name is told, and costs a chat line.
-	if (player.announced)
+	if (client.announced)
 	{
-		if (player.chatLines < 1.0f)
+		if (client.chatLines < 1.0f)
 			return;
-		player.chatLines -= 1.0f;
+		client.chatLines -= 1.0f;
 	}
-	PH_LOG_INFO("server: player %u is now %s", player.peer, name.c_str());
-	const std::string old = player.name;
-	player.name = name;
-	if (player.announced)
-		NoticeAll("chat.renamed", old, name);
+	PH_LOG_INFO("server: player %u is now %s", client.peer, name.c_str());
+	const std::string old = client.name;
+	client.name = name;
+	if (client.announced && client.match)
+		NoticeAll(*client.match, "chat.renamed", old, name);
+	if (sim::Account* account = client.account.empty() ? nullptr : LoadAccount(client.account))
+	{
+		account->name = name;
+		SaveAccount(client.account);
+		UpdateLeaderboard(client.account, *account);
+	}
 }
 
-std::string Server::UniqueName(std::string_view wanted, const Player* self) const
+std::string Server::UniqueName(std::string_view wanted, const Client* self) const
 {
 	const auto taken = [&](std::string_view name)
 	{
-		return std::any_of(players.begin(), players.end(), [&](const Player& other)
+		return std::any_of(clients.begin(), clients.end(), [&](const Client& other)
 		                   { return &other != self && SameName(other.name, name); });
 	};
 	if (!taken(wanted))
@@ -390,237 +461,111 @@ void Server::Admit(f32 dt)
 	}
 }
 
-void Server::ApplyControls()
-{
-	for (Player& player : players)
-	{
-		if (player.queued.empty())
-		{
-			// The last controls hold, for a while.
-			if (++player.idle == IDLE_TICKS && !match.autopilot)
-				sim::SetControls(*world, player.ship, {});
-			continue;
-		}
-		player.idle = 0;
-		if (player.queued.size() > MAX_LEAD)
-			player.queued.erase(player.queued.begin(), player.queued.end() - MAX_LEAD);
-		const Controls next = player.queued.front();
-		player.queued.erase(player.queued.begin());
-		player.applied = next.number;
-		if (!match.autopilot)
-			sim::SetControls(*world, player.ship, next.controls);
-	}
-}
-
 void Server::Leave(net::PeerId peer)
 {
-	const auto player = std::find_if(players.begin(), players.end(),
-	                                 [peer](const Player& p) { return p.peer == peer; });
-	if (player == players.end())
+	Client* client = FindClient(peer);
+	if (!client)
 		return;
-	sim::RemoveShip(*world, player->ship);
-	const std::string name = player->name;
-	const bool announced = player->announced;
-	players.erase(player);
+	Match* match = client->match;
+	const std::string name = client->name;
+	const bool announced = client->announced;
+	const std::string account = client->account;
+	if (match)
+		RemovePlayer(*match, peer);
+	std::erase_if(clients, [peer](const Client& c) { return c.peer == peer; });
 	PH_LOG_INFO("server: player %u left", peer);
-	if (announced)
-		NoticeAll("chat.left", name);
-	if (players.empty() && match.resetWhenEmpty)
-		Restart();
+	if (match && announced)
+		NoticeAll(*match, "chat.left", name);
+	if (match == matches[0].get() && match->players.empty() && started.resetWhenEmpty)
+		Restart(*match);
+	if (!account.empty())
+		ForgetAccount(account);
 }
 
-void Server::Restart()
-{
-	world = std::make_unique<sim::World>();
-	sim::MakeAsteroidField(*world, match.field);
-	enemies.clear();
-	wave = 0;
-	match.waves = started.waves;
-	untilWave = match.waveDelay;
-	seed = match.seed;
-	PH_LOG_INFO("server: nobody left; the match starts over");
-}
-
-void Server::Referee()
-{
-	// A bot's wreck goes at once: this tick's events tell of its end.
-	for (auto enemy = enemies.begin(); enemy != enemies.end();)
-	{
-		const sim::Ship* ship = sim::GetShip(*world, enemy->ship);
-		if (ship && sim::IsAlive(*ship))
-		{
-			++enemy;
-			continue;
-		}
-		sim::RemoveShip(*world, enemy->ship);
-		enemy = enemies.erase(enemy);
-		PH_LOG_INFO("server: tick %llu, a bot of wave %u is down",
-		            static_cast<unsigned long long>(world->tick), wave);
-	}
-	// A player's wreck stays a while, then the ship is back home, whole.
-	for (Player& player : players)
-	{
-		const sim::Ship* ship = sim::GetShip(*world, player.ship);
-		if (!ship || sim::IsAlive(*ship))
-		{
-			player.down = 0.0f;
-			continue;
-		}
-		if (player.down == 0.0f)
-			PH_LOG_INFO("server: tick %llu, player %u is down",
-			            static_cast<unsigned long long>(world->tick), player.peer);
-		player.down += sim::TICK_SECONDS;
-		if (player.down >= match.respawn)
-		{
-			sim::ReviveShip(*world, player.ship, FindRoom(player.home, ship->hull.radius + 1.0f),
-			                0.0f);
-			player.down = 0.0f;
-			PH_LOG_INFO("server: player %u is back", player.peer);
-		}
-	}
-	// The next wave once the last is gone, after a breath; none without
-	// players.
-	if (!match.waves || players.empty() || !enemies.empty())
-		return;
-	untilWave -= sim::TICK_SECONDS;
-	if (untilWave <= 0.0f)
-	{
-		SendWave();
-		untilWave = match.waveDelay;
-	}
-}
-
-void Server::SendWave()
-{
-	++wave;
-	skill = SkillFor(wave);
-	const u32 count = std::min(match.firstWave + wave - 1, match.largestWave);
-	// From the first player that flies.
-	Vec2 center = {};
-	for (const Player& player : players)
-	{
-		const sim::Ship* ship = sim::GetShip(*world, player.ship);
-		if (ship && sim::IsAlive(*ship))
-		{
-			center = ship->position;
-			break;
-		}
-	}
-	AddBots(count, center, 110.0f, 130.0f);
-	PH_LOG_INFO("server: wave %u, %u bots", wave, u32(enemies.size()));
-}
-
-u32 Server::AddBots(u32 count, Vec2 center, f32 near, f32 far)
-{
-	// Every ship in every snapshot.
-	const u32 ships = u32(players.size() + enemies.size());
-	count = std::min(count, ships < sim::MAX_SNAPSHOT_SHIPS ? sim::MAX_SNAPSHOT_SHIPS - ships : 0);
-	if (wave == 0)
-		skill = SkillFor(1);
-	const f32 side = 2.0f * PI * Random();
-	const sim::HullClass hull = BotHull();
-	u32 added = 0;
-	for (u32 i = 0; i < count; ++i)
-	{
-		const f32 angle = side + 0.18f * (f32(i) - 0.5f * f32(count - 1));
-		const Vec2 at = FindRoom(center + sim::Forward(angle) * (near + (far - near) * Random()),
-		                         hull.radius + 3.0f);
-		sim::Ship ship;
-		ship.position = at;
-		ship.angle = sim::AngleOf(center - at);
-		ship.team = sim::BOTS;
-		ship.hull = hull;
-		ship.weapon = BotWeapon();
-		const sim::ShipHandle handle = sim::SpawnShip(*world, ship);
-		if (!handle)
-			break;
-		Enemy enemy;
-		enemy.ship = handle;
-		enemy.pilot.random = u32(Random() * 16777216.0f) * 2u + 1u;
-		enemy.pilot.roam = center;
-		enemies.push_back(enemy);
-		++added;
-	}
-	return added;
-}
-
-void Server::RemoveBots()
-{
-	for (const Enemy& enemy : enemies)
-		sim::RemoveShip(*world, enemy.ship);
-	enemies.clear();
-	untilWave = match.waveDelay;
-}
-
-void Server::OnSay(Player& player, std::string_view text)
+void Server::OnSay(Client& client, std::string_view text)
 {
 	const std::string line = sim::CleanText(text, sim::MAX_CHAT_BYTES);
-	if (line.empty())
+	if (line.empty() || !client.match)
 		return;
-	if (player.chatLines < 1.0f)
+	if (client.chatLines < 1.0f)
 	{
-		Notice(player.peer, "chat.too_fast");
+		Notice(client.peer, "chat.too_fast");
 		return;
 	}
-	player.chatLines -= 1.0f;
+	client.chatLines -= 1.0f;
 	if (line[0] == '/')
 	{
-		PH_LOG_INFO("server: %s: %s", player.name.c_str(), line.c_str());
-		Command(player, line);
+		PH_LOG_INFO("server: %s: %s", client.name.c_str(), line.c_str());
+		Command(client, line);
 		return;
 	}
-	PH_LOG_INFO("chat: %s: %s", player.name.c_str(), line.c_str());
+	PH_LOG_INFO("chat: %s: %s", client.name.c_str(), line.c_str());
 	sim::Chat chat;
-	chat.ship = sim::ShipId(player.ship);
-	chat.name = player.name;
+	for (const Player& player : client.match->players)
+	{
+		if (player.peer == client.peer)
+			chat.ship = sim::ShipId(player.ship);
+	}
+	chat.name = client.name;
 	chat.text = line;
-	Broadcast(chat);
+	Broadcast(*client.match, chat);
 }
 
-void Server::Command(Player& player, std::string_view line)
+void Server::Command(Client& client, std::string_view line)
 {
+	Match& match = *client.match;
 	std::string_view name;
 	std::string_view argument;
 	SplitCommand(line, name, argument);
+	const bool skirmish = match.kind == sim::MatchKind::Skirmish;
 	if (name == "help")
-		Notice(player.peer, "chat.help");
-	else if (name == "add_bots")
+		Notice(client.peer, "chat.help");
+	else if (name == "add_bots" && skirmish)
 	{
 		const u32 count = argument.empty() ? DEFAULT_BOTS : ParseCount(argument);
 		if (count == 0)
 		{
-			Notice(player.peer, "chat.count");
+			Notice(client.peer, "chat.count");
 			return;
 		}
-		const sim::Ship* ship = sim::GetShip(*world, player.ship);
-		const u32 added = AddBots(count, ship ? ship->position : player.home, 80.0f, 100.0f);
+		Vec2 near = {};
+		for (const Player& player : match.players)
+		{
+			const sim::Ship* ship = sim::GetShip(*match.world, player.ship);
+			if (player.peer == client.peer)
+				near = ship ? ship->position : player.home;
+		}
+		const u32 added = AddBots(match, count, near, 80.0f, 100.0f, 1.0f);
 		if (added == 0)
-			Notice(player.peer, "chat.full", std::to_string(sim::MAX_SNAPSHOT_SHIPS));
+			Notice(client.peer, "chat.full", {}, std::to_string(sim::MAX_SNAPSHOT_SHIPS));
 		else
-			NoticeAll("chat.bots_added", player.name, std::to_string(added));
+			NoticeAll(match, "chat.bots_added", client.name, std::to_string(added));
 	}
-	else if (name == "remove_bots")
+	else if (name == "remove_bots" && skirmish)
 	{
-		RemoveBots();
-		NoticeAll("chat.bots_removed", player.name);
+		RemoveBots(match);
+		NoticeAll(match, "chat.bots_removed", client.name);
 	}
-	else if (name == "waves" && (argument == "on" || argument == "off"))
+	else if (name == "waves" && skirmish && (argument == "on" || argument == "off"))
 	{
-		match.waves = argument == "on";
-		untilWave = match.waveDelay;
-		NoticeAll(match.waves ? "chat.waves_on" : "chat.waves_off", player.name);
+		match.rules.waves = argument == "on";
+		match.untilWave = match.rules.waveDelay;
+		NoticeAll(match, match.rules.waves ? "chat.waves_on" : "chat.waves_off", client.name);
 	}
-	else if (name == "waves")
-		Notice(player.peer, "chat.waves_usage");
+	else if (name == "waves" && skirmish)
+		Notice(client.peer, "chat.waves_usage");
 	else if (name == "who")
 	{
 		std::string names;
-		for (const Player& other : players)
-			names += (names.empty() ? "" : ", ") + other.name;
-		Notice(player.peer, "chat.who", {}, sim::CleanText(names, sim::MAX_CHAT_BYTES));
+		for (const Player& player : match.players)
+		{
+			if (const Client* other = FindClient(player.peer))
+				names += (names.empty() ? "" : ", ") + other->name;
+		}
+		Notice(client.peer, "chat.who", {}, sim::CleanText(names, sim::MAX_CHAT_BYTES));
 	}
 	else
-		Notice(player.peer, "chat.unknown",
+		Notice(client.peer, "chat.unknown",
 		       sim::CleanText("/" + std::string(name), sim::MAX_NAME_BYTES));
 }
 
@@ -635,72 +580,382 @@ void Server::Notice(net::PeerId peer, const char* key, std::string_view name,
 	Send(peer, sim::Write(chat), net::Delivery::Reliable);
 }
 
-void Server::NoticeAll(const char* key, std::string_view name, std::string_view extra)
+void Server::NoticeAll(const Match& match, const char* key, std::string_view name,
+                       std::string_view extra)
 {
 	sim::Chat chat;
 	chat.notice = true;
 	chat.text = key;
 	chat.name = name;
 	chat.extra = extra;
-	Broadcast(chat);
+	Broadcast(match, chat);
 }
 
-void Server::Broadcast(const sim::Chat& chat)
+void Server::Broadcast(const Match& match, const sim::Chat& chat)
 {
 	const std::vector<u8> bytes = sim::Write(chat);
-	for (const Player& player : players)
+	for (const Player& player : match.players)
 		Send(player.peer, bytes, net::Delivery::Reliable);
 }
 
-Vec2 Server::FindRoom(Vec2 near, f32 radius) const
+void Server::OnLogin(Client& client, const sim::Login& login)
 {
-	// Out along a spiral until no rock is in the way.
-	for (u32 k = 0; k < 64; ++k)
-	{
-		const Vec2 at = near + sim::Forward(2.4f * f32(k)) * (2.0f * f32(k));
-		bool clear = true;
-		for (u32 r = 0; r < world->rockCount && clear; ++r)
-		{
-			const sim::Rock& rock = world->rocks[r];
-			const f32 reach = rock.radius + radius;
-			clear = rock.health <= 0.0f ||
-			        sim::Dot(at - rock.position, at - rock.position) >= reach * reach;
-		}
-		if (clear)
-			return at;
-	}
-	return near;
-}
-
-f32 Server::Random()
-{
-	seed = seed * 1664525u + 1013904223u;
-	return f32(seed >> 8) / f32(1u << 24);
-}
-
-void Server::SendEvents()
-{
-	if (players.empty() || world->eventCount == 0)
+	if (!hub.store || client.match || client.signIn)
 		return;
-	sim::TakeEvents(*world, events);
-	const std::vector<u8> bytes = sim::Write(events);
-	for (const Player& player : players)
-		Send(player.peer, bytes, net::Delivery::Reliable);
+	// Once a connection, except a guest's sign-in (Steam came up late).
+	if (!client.account.empty())
+	{
+		const sim::Account* account = LoadAccount(client.account);
+		if (login.provider.empty() || !account || !account->IsGuest())
+			return;
+	}
+	if (!IsKey(login.key))
+	{
+		Notice(client.peer, "error.account");
+		return;
+	}
+	if (login.provider.empty())
+	{
+		FinishLogin(client, login, nullptr);
+		return;
+	}
+	if (!hub.signIn)
+	{
+		SignInAnswer off;
+		off.provider = login.provider;
+		off.error = "error.signin_off";
+		FinishLogin(client, login, &off);
+		return;
+	}
+	// The provider answers later (PollSignIns): until then, no account.
+	client.signIn = ++nextSignIn;
+	client.login = login;
+	hub.signIn->Check(client.signIn, {login.provider, login.proof, login.nonce});
 }
 
-void Server::SendSnapshots()
+void Server::PollSignIns()
 {
-	// Each player's own: its ship first, the nearest after it, and what its
-	// prediction needs.
-	for (const Player& player : players)
+	if (!hub.signIn)
+		return;
+	u64 ticket = 0;
+	SignInAnswer answer;
+	while (hub.signIn->Poll(ticket, answer))
 	{
-		sim::TakeSnapshot(*world, snapshot, player.ship, match.autopilot);
-		snapshot.wave = wave;
-		snapshot.input = player.applied;
-		const sim::Ship* ship = sim::GetShip(*world, player.ship);
-		snapshot.cooldown = ship ? ship->cooldown : 0.0f;
-		Send(player.peer, sim::Write(snapshot), net::Delivery::Unreliable);
+		const auto client = std::find_if(clients.begin(), clients.end(),
+		                                 [ticket](const Client& c) { return c.signIn == ticket; });
+		if (client == clients.end())
+			continue; // it left meanwhile
+		client->signIn = 0;
+		const sim::Login login = std::move(client->login);
+		client->login = {};
+		FinishLogin(*client, login, &answer);
 	}
+}
+
+bool Server::FindByKey(const std::string& key, std::string& id)
+{
+	id = AccountId(key);
+	if (const sim::Account* account = LoadAccount(id))
+	{
+		if (account->Opens(key))
+			return true;
+		id.clear();
+		return false;
+	}
+	std::string linked;
+	if (hub.store->LoadLink(KeyLinkName(key), linked))
+	{
+		const sim::Account* account = LoadAccount(linked);
+		if (account && account->Opens(key))
+		{
+			id = linked;
+			return true;
+		}
+	}
+	id.clear();
+	return true;
+}
+
+std::string Server::HandOutKey(const std::string& id, sim::Account& account)
+{
+	std::string key = NewKey();
+	while (account.keys.size() >= sim::MAX_KEYS_KEPT)
+	{
+		hub.store->RemoveLink(KeyLinkName(account.keys.front()));
+		account.keys.erase(account.keys.begin());
+	}
+	account.keys.push_back(key);
+	hub.store->SaveLink(KeyLinkName(key), id);
+	return key;
+}
+
+bool Server::Saves(const sim::Account& account) const
+{
+	return hub.keepGuests || !account.IsGuest() || account.kept;
+}
+
+bool Server::Ranks(const sim::Account& account) const
+{
+	return !account.IsGuest() && !account.hidden && !account.banned;
+}
+
+void Server::FinishLogin(Client& client, const sim::Login& login, const SignInAnswer* answer)
+{
+	const i64 now = Now();
+	// A guest signing in on its connection lets go of the guest account.
+	const std::string previous = client.account;
+	client.account.clear();
+	sim::Signed reply;
+	reply.key = login.key;
+	if (hub.signIn)
+		reply.offers = hub.signIn->Offers();
+	std::string keyed;
+	if (!FindByKey(login.key, keyed))
+	{
+		Notice(client.peer, "error.account");
+		return;
+	}
+	const bool signedIn = answer && answer->error.empty();
+	if (answer && !signedIn)
+		reply.error = answer->error;
+	const auto full = [&]
+	{
+		if (accountCount < MAX_ACCOUNTS)
+			return false;
+		PH_LOG_WARN("server: %u accounts already: a new one is refused", accountCount);
+		Notice(client.peer, "error.full");
+		return true;
+	};
+	const auto make = [&](const std::string& key)
+	{
+		const std::string made = AccountId(key);
+		accounts[made] = sim::NewAccount(sim::GetCatalog(), key, client.name, now);
+		if (hub.seed)
+			hub.seed(accounts[made]);
+		return made;
+	};
+	std::string id;
+	std::string owner;
+	if (signedIn && hub.store->LoadLink(LinkName(answer->provider, answer->id), owner) &&
+	    LoadAccount(owner))
+	{
+		// The sign-in's account wins. A device without a key for it gets
+		// one; what a guest did there is dropped.
+		id = owner;
+		if (keyed != id)
+			reply.key = HandOutKey(id, *LoadAccount(id));
+	}
+	else if (signedIn && (keyed.empty() || LoadAccount(keyed)->IsGuest()))
+	{
+		// The device's guest (or a new account on its key) signs in: saved
+		// from now on, progress and all.
+		const bool fresh = keyed.empty() || !summaries.contains(keyed);
+		if (fresh && full())
+			return;
+		id = keyed.empty() ? make(login.key) : keyed;
+		if (fresh)
+			++accountCount;
+	}
+	else if (signedIn)
+	{
+		// The device's key opens another signed-in account: a new one, with
+		// a new key.
+		if (full())
+			return;
+		reply.key = NewKey();
+		id = make(reply.key);
+		++accountCount;
+	}
+	else if (!keyed.empty())
+		id = keyed;
+	else
+	{
+		// A guest: in memory while connected (saved only with keepGuests).
+		if (hub.keepGuests && full())
+			return;
+		id = make(login.key);
+		if (hub.keepGuests)
+			++accountCount;
+		PH_LOG_INFO("server: a guest account %s for peer %u", id.c_str(), client.peer);
+	}
+	sim::Account* account = LoadAccount(id);
+	if (!previous.empty() && previous != id)
+		ForgetAccount(previous);
+	if (signedIn && !account->FindIdentity(answer->provider))
+	{
+		account->identities.push_back({answer->provider, answer->id, answer->name});
+		account->kept = false; // a guest no more: saved by its sign-in
+		hub.store->SaveLink(LinkName(answer->provider, answer->id), id);
+		PH_LOG_INFO("server: account %s signs in with %s", id.c_str(), answer->provider.c_str());
+	}
+	if (account->banned)
+	{
+		PH_LOG_INFO("server: account %s is banned", id.c_str());
+		Notice(client.peer, "error.banned");
+		ForgetAccount(id);
+		return;
+	}
+	// One connection an account: a newer one takes it over.
+	for (Client& other : clients)
+	{
+		if (&other != &client && other.account == id)
+		{
+			Notice(other.peer, "error.elsewhere");
+			other.account.clear();
+		}
+	}
+	client.account = id;
+	// The name: the client's, or for a sign-in the provider's, while the
+	// pilot has none of its own.
+	const std::string offered = sim::CleanText(
+		signedIn && !answer->name.empty() ? std::string_view(answer->name) : login.name,
+		sim::MAX_NAME_BYTES);
+	if (!offered.empty() && offered != account->name && (!signedIn || IsDefaultName(account->name)))
+		account->name = offered;
+	client.name = UniqueName(account->name, &client);
+	sim::Advance(sim::GetCatalog(), *account, now);
+	SaveAccount(id);
+	UpdateLeaderboard(id, *account);
+	PH_LOG_INFO("server: peer %u is account %s (%s, %s)", client.peer, id.c_str(),
+	            account->name.c_str(),
+	            account->kept        ? "a kept guest"
+	            : account->IsGuest() ? "a guest"
+	                                 : std::string(account->Provider()).c_str());
+	// A kept guest is saved by its device's key: "device", for the hub to say so.
+	reply.provider = account->kept ? "device" : account->Provider();
+	Send(client.peer, sim::Write(reply), net::Delivery::Reliable);
+	SendProfile(client);
+}
+
+void Server::OnRequest(Client& client, std::string_view json)
+{
+	if (client.account.empty())
+		return;
+	if (client.requests < 1.0f)
+	{
+		Notice(client.peer, "error.too_fast");
+		return;
+	}
+	client.requests -= 1.0f;
+	sim::Operation operation;
+	sim::Account* account = LoadAccount(client.account);
+	if (!account || !sim::FromJson(json, operation))
+		return;
+	const sim::Catalog& catalog = sim::GetCatalog();
+	const i64 now = Now();
+	std::string why;
+	bool done = true;
+	switch (operation.kind)
+	{
+		case sim::Operation::Kind::Refresh: sim::Advance(catalog, *account, now); break;
+		case sim::Operation::Kind::Upgrade:
+			done = sim::Upgrade(catalog, *account, operation.building, now, why);
+			break;
+		case sim::Operation::Kind::Build:
+			done = sim::Build(catalog, *account, operation.id, now, why);
+			break;
+		case sim::Operation::Kind::Fit:
+			done = sim::FitModule(catalog, *account, operation.ship, operation.slot,
+			                      operation.module, why);
+			break;
+		case sim::Operation::Kind::Load:
+			done = sim::LoadHold(catalog, *account, operation.ship, operation.id, operation.count,
+			                     why);
+			break;
+		case sim::Operation::Kind::Repair:
+			done = sim::Repair(catalog, *account, operation.ship, now, why);
+			break;
+		case sim::Operation::Kind::Launch:
+			if (client.match)
+			{
+				done = false;
+				why = "error.busy";
+				break;
+			}
+			done = LaunchBattle(client, operation.node, operation.ships, why);
+			break;
+		case sim::Operation::Kind::Return:
+			if (client.match && client.match->kind == sim::MatchKind::Battle)
+				client.match->returning = true;
+			return; // the battle's end answers
+	}
+	if (!done)
+	{
+		Notice(client.peer, why.empty() ? "error.refused" : why.c_str());
+		return;
+	}
+	SaveAccount(client.account);
+	SendProfile(client);
+}
+
+sim::Account* Server::LoadAccount(const std::string& id)
+{
+	const auto found = accounts.find(id);
+	if (found != accounts.end())
+		return &found->second;
+	std::string json;
+	sim::Account account;
+	if (!hub.store || !hub.store->Load(id, json) || !sim::FromJson(json, account))
+		return nullptr;
+	// Read from the store, no battle of it can be running: ships away come
+	// home as they left.
+	sim::BringHome(account);
+	return &(accounts[id] = std::move(account));
+}
+
+void Server::SaveAccount(const std::string& id)
+{
+	const auto found = accounts.find(id);
+	if (!hub.store || found == accounts.end() || !Saves(found->second))
+		return;
+	hub.store->Save(id, sim::ToJson(found->second, true));
+	summaries[id] = SummaryOf(found->second);
+}
+
+Server::Summary Server::SummaryOf(const sim::Account& account)
+{
+	Summary summary;
+	summary.name = account.name;
+	summary.identities = account.identities;
+	summary.deepest = account.deepest;
+	summary.battles = account.stats.battles;
+	summary.kills = account.stats.kills;
+	summary.created = account.created;
+	summary.updated = account.updated;
+	summary.banned = account.banned;
+	summary.hidden = account.hidden;
+	return summary;
+}
+
+void Server::SendProfile(const Client& client)
+{
+	const auto found = accounts.find(client.account);
+	if (found == accounts.end())
+		return;
+	Send(client.peer, sim::Write(sim::Profile{sim::ProfileJson(found->second, Now())}),
+	     net::Delivery::Reliable);
+}
+
+bool Server::InUse(const std::string& id) const
+{
+	return std::any_of(clients.begin(), clients.end(),
+	                   [&](const Client& c) { return c.account == id; }) ||
+	       std::any_of(matches.begin(), matches.end(),
+	                   [&](const std::unique_ptr<Match>& m) { return m->account == id; });
+}
+
+void Server::ForgetAccount(const std::string& id)
+{
+	// A guest's goes with it: nothing of it was saved.
+	if (!InUse(id))
+		accounts.erase(id);
+}
+
+void Server::UpdateLeaderboard(const std::string& id, const sim::Account& account)
+{
+	if (leaderboard.Update(id, account.name, Ranks(account) ? account.deepest : 0,
+	                       account.deepestAt, account.Provider()))
+		leaderboardChanged = true;
 }
 
 void Server::Send(net::PeerId peer, const std::vector<u8>& bytes, net::Delivery delivery)

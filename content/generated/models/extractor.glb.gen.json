@@ -1,0 +1,37 @@
+{
+  "type": "model",
+  "provider": "meshy",
+  "model": "meshy-7.1",
+  "subject": "Matte painted steel-gray and slate-blue panels with dark frames, not shiny metal; thin electric-blue light strips and small blue-lit windows; a dark metal foundation pad.",
+  "prompt": "Matte painted steel-gray and slate-blue panels with dark frames, not shiny metal; thin electric-blue light strips and small blue-lit windows; a dark metal foundation pad.",
+  "references": [
+    {
+      "path": "generated/concepts/extractor.jpg",
+      "sha256": "361ae4c65cf5c1299b7195048d6745eb2c4dc8675587a9e38c015fe0c0451542"
+    }
+  ],
+  "parameters": {
+    "texture": "4k",
+    "pbr": true,
+    "polycount": 150000,
+    "topology": "triangle",
+    "variants": 1
+  },
+  "job": {
+    "id": "20261004-212612-f7ab",
+    "providerId": "01a108cf-67ea-7440-9071-d1c3d8dc8e80",
+    "started": "2026-10-04T21:26:12Z",
+    "finished": "2026-10-04T21:33:42Z",
+    "cost": 0.6,
+    "credits": 30
+  },
+  "terms": {
+    "url": "https://www.meshy.ai/terms-of-use"
+  },
+  "output": {
+    "sha256": "66031541d795c55a1e82581fd3eda371ab4711d3ba46d5a5c148267538cbe2ef",
+    "variant": 1,
+    "accepted": "2026-10-04T21:35:21Z",
+    "pith": "0.1.0"
+  }
+}

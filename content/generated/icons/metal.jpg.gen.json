@@ -1,0 +1,30 @@
+{
+  "kind": "icon",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Refined metal: a small stack of heavy steel-gray ingots with beveled edges, laid crosswise in two layers, their tops brushed and faintly scratched.",
+  "style": "An item picture for a sci-fi game's inventory, read as small as 64 pixels: one object alone, whole, centered and filling about three quarters of the square, in a three-quarter view from above, on a plain dark background, a soft radial gradient from deep slate blue (#242D41) in the middle to navy black (#0A0F16) at the edges. A bold, simple silhouette and clear shapes; a cool key light from the upper left and a pale cyan rim light (#71B2D8) on the far edges. Palette: steel grays (#686A79, #97999F), dark slate frames (#192130, #3E4D6B), electric blue to pale cyan (#4E87BB, #ACDBE9) as the only bright accent. Crisp and sharp, clean hard edges, realistic materials, cinematic game art. No text, no lettering, no numbers, no logos, no interface, no frame or border, no lens flares.",
+  "prompt": "Refined metal: a small stack of heavy steel-gray ingots with beveled edges, laid crosswise in two layers, their tops brushed and faintly scratched.\n\nAn item picture for a sci-fi game's inventory, read as small as 64 pixels: one object alone, whole, centered and filling about three quarters of the square, in a three-quarter view from above, on a plain dark background, a soft radial gradient from deep slate blue (#242D41) in the middle to navy black (#0A0F16) at the edges. A bold, simple silhouette and clear shapes; a cool key light from the upper left and a pale cyan rim light (#71B2D8) on the far edges. Palette: steel grays (#686A79, #97999F), dark slate frames (#192130, #3E4D6B), electric blue to pale cyan (#4E87BB, #ACDBE9) as the only bright accent. Crisp and sharp, clean hard edges, realistic materials, cinematic game art. No text, no lettering, no numbers, no logos, no interface, no frame or border, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 4
+  },
+  "job": {
+    "id": "20261004-212707-81e0",
+    "providerId": "",
+    "started": "2026-10-04T21:27:07Z",
+    "finished": "2026-10-04T21:27:17Z",
+    "cost": 0.273878
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "c1ec21a09e2bac342fd440be6380585bbcb8efb93972c73e4993c6e827e972e4",
+    "variant": 3,
+    "accepted": "2026-10-04T21:27:47Z",
+    "pith": "0.1.0"
+  }
+}

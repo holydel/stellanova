@@ -1,0 +1,37 @@
+{
+  "type": "model",
+  "provider": "meshy",
+  "model": "meshy-7.1",
+  "subject": "Cool light-gray lunar regolith, matte dust and broken rock, darker gray boulders; nothing shiny.",
+  "prompt": "Cool light-gray lunar regolith, matte dust and broken rock, darker gray boulders; nothing shiny.",
+  "references": [
+    {
+      "path": "generated/concepts/crater.jpg",
+      "sha256": "360d0e74542a9390b62faaa41f49335639b6021c5cf3cc619838afee120a0fc4"
+    }
+  ],
+  "parameters": {
+    "texture": "4k",
+    "pbr": true,
+    "polycount": 150000,
+    "topology": "triangle",
+    "variants": 1
+  },
+  "job": {
+    "id": "20261004-212755-3a97",
+    "providerId": "01a108d0-f905-753a-80de-a63c58b48634",
+    "started": "2026-10-04T21:27:55Z",
+    "finished": "2026-10-04T21:33:17Z",
+    "cost": 0.6,
+    "credits": 30
+  },
+  "terms": {
+    "url": "https://www.meshy.ai/terms-of-use"
+  },
+  "output": {
+    "sha256": "d6e6ed526bd895874b0a001395b1e24c5f29fed6b428c8f2b2c80a39b1a94134",
+    "variant": 1,
+    "accepted": "2026-10-04T21:35:21Z",
+    "pith": "0.1.0"
+  }
+}

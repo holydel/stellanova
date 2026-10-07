@@ -9,13 +9,17 @@ namespace sn::sim
 namespace
 {
 // Bytes on the wire.
-constexpr u32 CONTROLS_BYTES = 1 + 1 + 1; // turn, thrust, fire
-// type, tick, wave, input, cooldown, ships, shots
-constexpr u32 SNAPSHOT_HEADER_BYTES = 1 + 8 + 4 + 4 + 4 + 4 + 4;
-// id, position, velocity, angle, controls, team, health, shield
-constexpr u32 SHIP_BYTES = 4 + 8 + 8 + 4 + CONTROLS_BYTES + 3;
+constexpr u32 CONTROLS_BYTES = 1 + 1; // turn, thrust
+// capacitor, cargo used, cargo mass, ammo, loaded, reloading, modules, flags
+constexpr u32 OWN_BYTES = 4 + 4 + 4 + 4 + 2 + 4 + MAX_MODULES + MAX_MODULES;
+// type, tick, wave, input, own, ships, shots
+constexpr u32 SNAPSHOT_HEADER_BYTES = 1 + 8 + 4 + 4 + OWN_BYTES + 4 + 4;
+// id, position, velocity, angle, controls, team, health, shield, capacitor,
+// turret, beam
+constexpr u32 SHIP_BYTES = 4 + 8 + 8 + 4 + CONTROLS_BYTES + 6;
 constexpr u32 SHOT_BYTES = 8 + 8 + 1;
 constexpr u32 ROCK_BYTES = 8 + 4 + 4;
+constexpr u32 CRATE_BYTES = 4 + 8;
 constexpr u32 EVENT_BYTES = 1 + 4 + 4 + 4 + 8 + 4;
 static_assert(SNAPSHOT_HEADER_BYTES + MAX_SNAPSHOT_SHIPS * SHIP_BYTES <= MAX_SNAPSHOT_BYTES);
 
@@ -48,6 +52,20 @@ bool IsSpace(u32 code)
 	       code == 0x202F || code == 0x205F || code == 0x3000;
 }
 
+// A hull's numbers, in the order they travel.
+template <typename Hull, typename Visit>
+void ForEachHullValue(Hull& hull, Visit visit)
+{
+	for (auto* value :
+	     {&hull.mass,           &hull.thrust,    &hull.thrustBack,  &hull.thrustTurn,
+	      &hull.maxSpeed,       &hull.drag,      &hull.radius,      &hull.bounce,
+	      &hull.health,         &hull.shield,    &hull.shieldRegen, &hull.shieldThreshold,
+	      &hull.resist[0],      &hull.resist[1], &hull.resist[2],   &hull.resist[3],
+	      &hull.reactor,        &hull.capacitor, &hull.scanner,     &hull.cargo,
+	      &hull.cargoMassFactor})
+		visit(*value);
+}
+
 // Every target pith runs on is little-endian, so fields go as they are.
 class Writer
 {
@@ -73,28 +91,24 @@ public:
 	{
 		Put(ToSteps(value.turn));
 		Put(ToSteps(value.thrust));
-		Put(value.fire);
 	}
 
 	void Put(const HullClass& hull)
 	{
-		for (const f32 value :
-		     {hull.acceleration, hull.reverse, hull.maxSpeed, hull.turnRate, hull.drag, hull.radius,
-		      hull.bounce, hull.health, hull.shield, hull.shieldRegen, hull.shieldDelay})
-			Put(value);
-	}
-
-	void Put(const WeaponClass& weapon)
-	{
-		for (const f32 value :
-		     {weapon.interval, weapon.speed, weapon.life, weapon.radius, weapon.damage})
-			Put(value);
+		ForEachHullValue(hull, [this](f32 value) { Put(value); });
 	}
 
 	// Its byte count (u16), then its bytes.
 	void PutText(std::string_view text)
 	{
 		Put(ph::u16(text.size()));
+		bytes.insert(bytes.end(), text.begin(), text.end());
+	}
+
+	// Its byte count (u32), then its bytes.
+	void PutLongText(std::string_view text)
+	{
+		Put(u32(text.size()));
 		bytes.insert(bytes.end(), text.begin(), text.end());
 	}
 
@@ -138,17 +152,7 @@ public:
 
 	void Get(HullClass& hull)
 	{
-		for (f32* value : {&hull.acceleration, &hull.reverse, &hull.maxSpeed, &hull.turnRate,
-		                   &hull.drag, &hull.radius, &hull.bounce, &hull.health, &hull.shield,
-		                   &hull.shieldRegen, &hull.shieldDelay})
-			Get(*value);
-	}
-
-	void Get(WeaponClass& weapon)
-	{
-		for (f32* value :
-		     {&weapon.interval, &weapon.speed, &weapon.life, &weapon.radius, &weapon.damage})
-			Get(*value);
+		ForEachHullValue(hull, [this](f32& value) { Get(value); });
 	}
 
 	void Get(Vec2& value)
@@ -163,7 +167,6 @@ public:
 		ph::i8 thrust = 0;
 		Get(turn);
 		Get(thrust);
-		Get(value.fire);
 		value.turn = FromSteps(turn);
 		value.thrust = FromSteps(thrust);
 	}
@@ -173,15 +176,18 @@ public:
 	{
 		ph::u16 length = 0;
 		Get(length);
-		ok = ok && length <= limit && length <= size - at;
-		if (!ok)
-			return;
-		text.assign(reinterpret_cast<const char*>(data + at), length);
-		at += length;
+		Take(text, length, limit);
 	}
 
-	// A count of items of `bytes` each: false when more than `limit`, or more
-	// than the message holds.
+	void GetLongText(std::string& text, u32 limit)
+	{
+		u32 length = 0;
+		Get(length);
+		Take(text, length, limit);
+	}
+
+	// A count of items of `bytes` each at least: false when more than
+	// `limit`, or more than the message holds.
 	bool Count(u32& count, u32 limit, u32 bytes)
 	{
 		Get(count);
@@ -196,12 +202,36 @@ public:
 	usize size;
 	bool ok;
 	usize at;
+
+private:
+	void Take(std::string& text, u32 length, u32 limit)
+	{
+		ok = ok && length <= limit && length <= size - at;
+		if (!ok)
+			return;
+		text.assign(reinterpret_cast<const char*>(data + at), length);
+		at += length;
+	}
 };
+
+std::vector<u8> WriteText(MessageType type, std::string_view text)
+{
+	Writer writer(type);
+	writer.PutLongText(text);
+	return writer.bytes;
+}
+
+bool ReadText(const u8* data, usize size, MessageType type, std::string& text, u32 limit)
+{
+	Reader reader(data, size, type);
+	reader.GetLongText(text, limit);
+	return reader.Done();
+}
 } // namespace
 
 ShipControls Quantize(ShipControls controls)
 {
-	return {FromSteps(ToSteps(controls.turn)), FromSteps(ToSteps(controls.thrust)), controls.fire};
+	return {FromSteps(ToSteps(controls.turn)), FromSteps(ToSteps(controls.thrust))};
 }
 
 u32 ShipId(ShipHandle ship) { return (ship.generation << 16) | (ship.index & 0xffffu); }
@@ -222,6 +252,8 @@ std::vector<u8> Write(const Hello& message)
 {
 	Writer writer(MessageType::Hello);
 	writer.Put(message.version);
+	writer.Put(message.catalog);
+	writer.Put(u8(message.joining));
 	return writer.bytes;
 }
 
@@ -231,15 +263,25 @@ std::vector<u8> Write(const Welcome& message)
 	writer.Put(message.ship);
 	writer.Put(message.tick);
 	writer.Put(message.respawn);
+	writer.Put(u8(message.kind));
+	writer.Put(message.ring);
 	writer.Put(message.hull);
-	writer.Put(message.weapon);
 	writer.Put(message.autopilot);
+	writer.Put(u8(std::min<usize>(message.modules.size(), MAX_MODULES)));
+	for (usize i = 0; i < std::min<usize>(message.modules.size(), MAX_MODULES); ++i)
+		writer.PutText(message.modules[i]);
 	writer.Put(u32(message.rocks.size()));
 	for (const Rock& rock : message.rocks)
 	{
 		writer.Put(rock.position);
 		writer.Put(rock.radius);
 		writer.Put(rock.health);
+	}
+	writer.Put(u32(message.crates.size()));
+	for (const CrateState& crate : message.crates)
+	{
+		writer.Put(crate.index);
+		writer.Put(crate.position);
 	}
 	return writer.bytes;
 }
@@ -252,6 +294,7 @@ std::vector<u8> Write(const Input& message)
 	writer.Put(u8(count));
 	for (u32 i = 0; i < count; ++i)
 		writer.Put(message.controls[i]);
+	writer.Put(message.target);
 	return writer.bytes;
 }
 
@@ -261,7 +304,17 @@ std::vector<u8> Write(const Snapshot& message)
 	writer.Put(message.tick);
 	writer.Put(message.wave);
 	writer.Put(message.input);
-	writer.Put(message.cooldown);
+	const OwnState& own = message.own;
+	writer.Put(own.capacitor);
+	writer.Put(own.cargoUsed);
+	writer.Put(own.cargoMass);
+	writer.Put(own.ammo);
+	writer.Put(own.loaded);
+	writer.Put(own.reloading);
+	for (const u8 module : own.modules)
+		writer.Put(module);
+	for (const u8 flags : own.flags)
+		writer.Put(flags);
 	writer.Put(message.count);
 	for (u32 i = 0; i < message.count; ++i)
 	{
@@ -274,6 +327,9 @@ std::vector<u8> Write(const Snapshot& message)
 		writer.Put(ship.team);
 		writer.Put(ship.health);
 		writer.Put(ship.shield);
+		writer.Put(ship.capacitor);
+		writer.Put(ship.turret);
+		writer.Put(ship.beam);
 	}
 	writer.Put(message.shotCount);
 	for (u32 i = 0; i < message.shotCount; ++i)
@@ -295,7 +351,7 @@ std::vector<u8> Write(const Events& message)
 		writer.Put(u8(event.type));
 		writer.Put(event.ship);
 		writer.Put(event.other);
-		writer.Put(event.rock);
+		writer.Put(event.index);
 		writer.Put(event.position);
 		writer.Put(event.strength);
 	}
@@ -335,6 +391,47 @@ std::vector<u8> Write(const Refusal& message)
 	return writer.bytes;
 }
 
+std::vector<u8> Write(const Login& message)
+{
+	Writer writer(MessageType::Login);
+	writer.PutText(message.key);
+	writer.PutText(message.name);
+	writer.PutText(message.provider);
+	writer.PutText(message.proof);
+	writer.PutText(message.nonce);
+	return writer.bytes;
+}
+
+std::vector<u8> Write(const Profile& message)
+{
+	return WriteText(MessageType::Profile, message.json);
+}
+
+std::vector<u8> Write(const Request& message)
+{
+	return WriteText(MessageType::Request, message.json);
+}
+
+std::vector<u8> Write(const Result& message)
+{
+	return WriteText(MessageType::Result, message.json);
+}
+
+std::vector<u8> Write(const Signed& message)
+{
+	Writer writer(MessageType::Signed);
+	writer.PutText(message.key);
+	writer.PutText(message.provider);
+	writer.PutText(message.error);
+	writer.Put(u32(message.offers.size()));
+	for (const SignInOffer& offer : message.offers)
+	{
+		writer.PutText(offer.provider);
+		writer.PutText(offer.url);
+	}
+	return writer.bytes;
+}
+
 MessageType TypeOf(const u8* data, usize size)
 {
 	return data && size ? MessageType(data[0]) : MessageType(0);
@@ -351,8 +448,8 @@ void MessageCounts::Add(const u8* data, usize size)
 const char* MessageName(u32 index)
 {
 	static constexpr const char* NAMES[MessageCounts::TYPES] = {
-		"other",  "hello", "welcome", "input", "snapshot",
-		"events", "name",  "say",     "chat",  "refusal"};
+		"other", "hello",   "welcome", "input",   "snapshot", "events", "name",  "say",
+		"chat",  "refusal", "login",   "profile", "request",  "result", "signed"};
 	return index < MessageCounts::TYPES ? NAMES[index] : NAMES[0];
 }
 
@@ -360,7 +457,14 @@ bool Read(const u8* data, usize size, Hello& message)
 {
 	Reader reader(data, size, MessageType::Hello);
 	reader.Get(message.version);
-	return reader.Done();
+	// An older client stops here: its version says enough.
+	if (reader.ok && reader.at == size)
+		return true;
+	reader.Get(message.catalog);
+	u8 joining = 0;
+	reader.Get(joining);
+	message.joining = Joining(joining);
+	return reader.Done() && joining <= u8(Joining::Hub);
 }
 
 bool Read(const u8* data, usize size, Welcome& message)
@@ -369,9 +473,19 @@ bool Read(const u8* data, usize size, Welcome& message)
 	reader.Get(message.ship);
 	reader.Get(message.tick);
 	reader.Get(message.respawn);
+	u8 kind = 0;
+	reader.Get(kind);
+	message.kind = MatchKind(kind);
+	reader.Get(message.ring);
 	reader.Get(message.hull);
-	reader.Get(message.weapon);
 	reader.Get(message.autopilot);
+	u8 modules = 0;
+	reader.Get(modules);
+	if (!reader.ok || kind > u8(MatchKind::Battle) || modules > MAX_MODULES)
+		return false;
+	message.modules.resize(modules);
+	for (std::string& module : message.modules)
+		reader.GetText(module, MAX_NAME_BYTES);
 	u32 count = 0;
 	if (!reader.Count(count, MAX_ROCKS, ROCK_BYTES))
 		return false;
@@ -381,6 +495,15 @@ bool Read(const u8* data, usize size, Welcome& message)
 		reader.Get(rock.position);
 		reader.Get(rock.radius);
 		reader.Get(rock.health);
+	}
+	if (!reader.Count(count, MAX_CRATES, CRATE_BYTES))
+		return false;
+	message.crates.resize(count);
+	for (CrateState& crate : message.crates)
+	{
+		reader.Get(crate.index);
+		reader.Get(crate.position);
+		reader.ok = reader.ok && crate.index < MAX_CRATES;
 	}
 	return reader.Done();
 }
@@ -397,6 +520,7 @@ bool Read(const u8* data, usize size, Input& message)
 	message.count = count;
 	for (u32 i = 0; i < count; ++i)
 		reader.Get(message.controls[i]);
+	reader.Get(message.target);
 	return reader.Done();
 }
 
@@ -406,7 +530,17 @@ bool Read(const u8* data, usize size, Snapshot& message)
 	reader.Get(message.tick);
 	reader.Get(message.wave);
 	reader.Get(message.input);
-	reader.Get(message.cooldown);
+	OwnState& own = message.own;
+	reader.Get(own.capacitor);
+	reader.Get(own.cargoUsed);
+	reader.Get(own.cargoMass);
+	reader.Get(own.ammo);
+	reader.Get(own.loaded);
+	reader.Get(own.reloading);
+	for (u8& module : own.modules)
+		reader.Get(module);
+	for (u8& flags : own.flags)
+		reader.Get(flags);
 	if (!reader.Count(message.count, MAX_SNAPSHOT_SHIPS, SHIP_BYTES))
 		return false;
 	for (u32 i = 0; i < message.count; ++i)
@@ -420,6 +554,14 @@ bool Read(const u8* data, usize size, Snapshot& message)
 		reader.Get(ship.team);
 		reader.Get(ship.health);
 		reader.Get(ship.shield);
+		reader.Get(ship.capacitor);
+		reader.Get(ship.turret);
+		reader.Get(ship.beam);
+	}
+	for (u32 i = 0; i < message.count; ++i)
+	{
+		if (message.ships[i].beam != NO_BEAM && message.ships[i].beam >= message.count)
+			return false;
 	}
 	if (!reader.Count(message.shotCount, MAX_SNAPSHOT_SHOTS, SHOT_BYTES))
 		return false;
@@ -447,7 +589,7 @@ bool Read(const u8* data, usize size, Events& message)
 		event.type = EventType(type);
 		reader.Get(event.ship);
 		reader.Get(event.other);
-		reader.Get(event.rock);
+		reader.Get(event.index);
 		reader.Get(event.position);
 		reader.Get(event.strength);
 		if (type > LAST_EVENT_TYPE)
@@ -490,6 +632,50 @@ bool Read(const u8* data, usize size, Refusal& message)
 	if (reason == 0 || reason > LAST_REFUSAL_REASON)
 		return false;
 	message.reason = RefusalReason(reason);
+	return reader.Done();
+}
+
+bool Read(const u8* data, usize size, Login& message)
+{
+	Reader reader(data, size, MessageType::Login);
+	reader.GetText(message.key, KEY_BYTES);
+	reader.GetText(message.name, MAX_NAME_BYTES);
+	reader.GetText(message.provider, MAX_PROVIDER_BYTES);
+	reader.GetText(message.proof, MAX_PROOF_BYTES);
+	reader.GetText(message.nonce, MAX_NONCE_BYTES);
+	return reader.Done();
+}
+
+bool Read(const u8* data, usize size, Profile& message)
+{
+	return ReadText(data, size, MessageType::Profile, message.json, MAX_PROFILE_BYTES);
+}
+
+bool Read(const u8* data, usize size, Request& message)
+{
+	return ReadText(data, size, MessageType::Request, message.json, MAX_REQUEST_BYTES);
+}
+
+bool Read(const u8* data, usize size, Result& message)
+{
+	return ReadText(data, size, MessageType::Result, message.json, MAX_PROFILE_BYTES);
+}
+
+bool Read(const u8* data, usize size, Signed& message)
+{
+	Reader reader(data, size, MessageType::Signed);
+	reader.GetText(message.key, KEY_BYTES);
+	reader.GetText(message.provider, MAX_PROVIDER_BYTES);
+	reader.GetText(message.error, MAX_NAME_BYTES);
+	u32 count = 0;
+	if (!reader.Count(count, MAX_OFFERS, 4))
+		return false;
+	message.offers.resize(count);
+	for (SignInOffer& offer : message.offers)
+	{
+		reader.GetText(offer.provider, MAX_PROVIDER_BYTES);
+		reader.GetText(offer.url, MAX_OFFER_BYTES);
+	}
 	return reader.Done();
 }
 
@@ -539,7 +725,15 @@ std::string CleanText(std::string_view text, u32 maxBytes)
 	return out;
 }
 
-void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own, bool ownShots)
+u8 AngleToByte(f32 angle)
+{
+	const f32 turns = WrapAngle(angle) / (2.0f * ph::PI);
+	return u8(ph::i32(std::lround(turns * 256.0f)) & 0xff);
+}
+
+f32 ByteToAngle(u8 turns) { return WrapAngle(f32(turns) * (2.0f * ph::PI / 256.0f)); }
+
+void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own)
 {
 	using Handles = ph::HandleAllocator<ShipTag, MAX_SHIPS>;
 	const Ship* self = GetShip(world, own);
@@ -549,9 +743,35 @@ void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own, bool o
 
 	snapshot.tick = world.tick;
 	snapshot.count = 0;
+	snapshot.own = {};
+	if (self)
+	{
+		OwnState& state = snapshot.own;
+		state.capacitor = self->capacitor;
+		state.cargoUsed = self->cargoUsed;
+		state.cargoMass = self->cargoMass;
+		state.ammo = self->ammo;
+		bool gun = false;
+		for (u32 i = 0; i < self->moduleCount; ++i)
+		{
+			const Module& module = self->modules[i];
+			state.modules[i] = Share(module.health, module.type.health);
+			state.flags[i] =
+				u8((module.working ? MODULE_WORKING : 0) | (module.offline ? MODULE_OFFLINE : 0));
+			if (module.type.kind == ModuleKind::Plasma && !gun)
+			{
+				gun = true;
+				state.loaded = ph::u16(std::min(module.loaded, 0xffffu));
+				state.reloading = module.reloading;
+			}
+		}
+	}
+	// Each included ship's slot, to find beams' targets among them.
+	u32 included[MAX_SNAPSHOT_SHIPS];
 	const auto add = [&](u32 slot)
 	{
 		const Ship& ship = world.ships[slot];
+		included[snapshot.count] = slot;
 		ShipState& state = snapshot.ships[snapshot.count++];
 		state.id = ShipId(world.shipIds[slot]);
 		state.position = ship.position;
@@ -561,6 +781,17 @@ void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own, bool o
 		state.team = ship.team;
 		state.health = Share(ship.health, ship.hull.health);
 		state.shield = Share(ship.shield, ship.hull.shield);
+		state.capacitor = Share(ship.capacitor, ship.hull.capacitor);
+		state.turret = 0;
+		state.beam = NO_BEAM;
+		for (u32 i = 0; i < ship.moduleCount; ++i)
+		{
+			if (ship.modules[i].type.external)
+			{
+				state.turret = AngleToByte(ship.modules[i].angle);
+				break;
+			}
+		}
 	};
 	u32 slots[MAX_SHIPS];
 	u32 total = 0;
@@ -577,6 +808,22 @@ void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own, bool o
 		                  { return nearer(world.ships[a].position, world.ships[b].position); });
 	for (u32 i = 0; i < taken; ++i)
 		add(slots[i]);
+	for (u32 i = 0; i < snapshot.count; ++i)
+	{
+		const Ship& ship = world.ships[included[i]];
+		for (u32 m = 0; m < ship.moduleCount; ++m)
+		{
+			const Module& module = ship.modules[m];
+			if (module.type.kind != ModuleKind::Laser || !module.working)
+				continue;
+			for (u32 j = 0; j < snapshot.count; ++j)
+			{
+				if (world.shipIds[included[j]] == module.target)
+					snapshot.ships[i].beam = u8(j);
+			}
+			break;
+		}
+	}
 
 	const u32 room =
 		(MAX_SNAPSHOT_BYTES - SNAPSHOT_HEADER_BYTES - snapshot.count * SHIP_BYTES) / SHOT_BYTES;
@@ -585,8 +832,7 @@ void TakeSnapshot(const World& world, Snapshot& snapshot, ShipHandle own, bool o
 	u32 shotTotal = 0;
 	for (u32 i = 0; i < MAX_SHOTS; ++i)
 	{
-		const Shot& shot = world.shots[i];
-		if (shot.life > 0.0f && (!self || ownShots || shot.owner != own))
+		if (world.shots[i].life > 0.0f)
 			shots[shotTotal++] = i;
 	}
 	const u32 shotTaken = std::min(shotTotal, shotLimit);
@@ -619,7 +865,7 @@ void TakeEvents(const World& world, Events& events)
 		state.type = event.type;
 		state.ship = event.ship ? ShipId(event.ship) : 0;
 		state.other = event.other ? ShipId(event.other) : 0;
-		state.rock = event.rock;
+		state.index = event.index;
 		state.position = event.position;
 		state.strength = event.strength;
 	}

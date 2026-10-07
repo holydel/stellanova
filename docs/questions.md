@@ -45,7 +45,8 @@ most of these.
 
 - **Quest 3:** not connected since step 13. Nothing from steps 14 on has
   run on it: sprites, uploads, pacing, devlink. The device weekend runs the
-  game on it in flat mode.
+  game on it in flat mode. pith ADR 0038 (XR) waits for `hello_xr` on it:
+  the developer decides after that run (2026-10-04).
 - **Galaxy XR and Quest capture while worn:** `vulkan_caps` gets no frames
   while the headset sleeps, so `docs/devices/sm-i610.json` still lists only
   the older 27 formats. Wear the headset during
@@ -68,18 +69,36 @@ most of these.
 
 ## Decisions for the developer
 
+- **The solo loop (2026-10-04, `docs/solo-loop.md`)**, open points of the
+  first version:
+  - **ADRs 0013, 0014, 0015 and 0016** are proposed: accept, change or
+    reject.
+  - **Steam's Web API key:** Steam sign-in waits for it on the server
+    (`docs/web-test-deploy.md`, "Steam's key"); until then every player is
+    a guest, and nothing is saved.
+  - **Browsers:** Google, Apple and Discord sign-ins are checked by the
+    server's code but have no apps yet, and the game page's side is not
+    built; a browser player keeps nothing. When? (It must sign in without
+    leaving the page, or a guest's colony is gone first.)
+  - **Balance:** every number is a first guess in `content/catalog.json`;
+    play ring 1 to 3 and say what feels off (ranges of 100 m against 3 m
+    ships make the camera rise far; a battle at ring 1 takes about 35 s).
+  - **Lost ships** are gone with their modules and cargo; with no ship and
+    too little metal, the colony gives a Lancer with a laser. Right?
+  - **Times:** upgrades take 30 s doubling each level, and command points
+    come back every 12 minutes, for testing. What should they be?
+  - **A disconnected battle** fights on under autopilot for two minutes,
+    then comes home with what it has (so leaving cannot save a losing
+    fleet). Good?
+  - **The map's seed** is one for everyone (`map.seed`), so the leaderboard
+    compares the same map. A new season: a new seed, and the board starts
+    over?
+
 - **The backend (ADR 0005):** Proposed until a one-day spike (roadmap step
   61) checks brainCloud's free tier against the developer's list (Steam
-  login, known users, account level, stats) and the ADR's open points; the
-  game server's admin channel is designed beside it. Then the developer
-  accepts or rejects the ADR.
-- **The UI system:** the developer (2026-10-03): today's interface is good
-  for an early demo, but a good UI system must come before the public test:
-  card-style screens for blueprints, fleet setups and fits, with stats and
-  graphs. Its ADR (how the game builds its interface) is not written yet.
-- **pith ADR 0016 (materials)** was reopened by the developer on
-  2026-10-03. What they want changed is not recorded yet: what should
-  change?
+  login, known users, account level, stats) and the ADR's open points.
+  Then the developer accepts or rejects the ADR. Meanwhile the game server
+  checks Steam sign-ins itself and has an admin page (ADR 0016).
 - **Steam** (app 1096260): `docs/steam.md` is the one place for its state:
   the builds, which one is live, and what is left to do in Steamworks (the
   Linux depot in the developer and tester packages, the Linux runtime, and

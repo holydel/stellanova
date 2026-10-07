@@ -1,0 +1,35 @@
+{
+  "kind": "concept",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "The reference image shows the Raider, a hostile pirate fighter, in a flat top-down plan view. Make a new picture of the same ship from a completely different camera position: a three-quarter view from above and in front, in perspective, like a photograph of a scale model taken from its front-left corner. The camera is in front of the ship and off to its left side, raised about 30 degrees above it: the nose is closest to the camera and points toward the lower left of the picture, the engines are at the far end toward the upper right, and we see the top of the hull, its left side and its front. The picture must NOT be a top-down view and must not repeat the reference's viewpoint: only the design is copied from it. Keep the design and its proportions exactly as the reference shows them: the pincer silhouette, two long prongs curving forward on each side of the narrow central hull; the hooked, swept-back wings; the battered, patched steel-gray armor plates; the glowing red-orange slits and accents; the two engines at the back with red-orange exhausts. Add nothing the reference does not show. The whole ship visible and centered with a wide empty margin, on a plain near-black background. No text or lettering anywhere.",
+  "style": "Clean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "prompt": "The reference image shows the Raider, a hostile pirate fighter, in a flat top-down plan view. Make a new picture of the same ship from a completely different camera position: a three-quarter view from above and in front, in perspective, like a photograph of a scale model taken from its front-left corner. The camera is in front of the ship and off to its left side, raised about 30 degrees above it: the nose is closest to the camera and points toward the lower left of the picture, the engines are at the far end toward the upper right, and we see the top of the hull, its left side and its front. The picture must NOT be a top-down view and must not repeat the reference's viewpoint: only the design is copied from it. Keep the design and its proportions exactly as the reference shows them: the pincer silhouette, two long prongs curving forward on each side of the narrow central hull; the hooked, swept-back wings; the battered, patched steel-gray armor plates; the glowing red-orange slits and accents; the two engines at the back with red-orange exhausts. Add nothing the reference does not show. The whole ship visible and centered with a wide empty margin, on a plain near-black background. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "references": [
+    {
+      "path": "generated/concepts/raider_top.jpg",
+      "sha256": "ef63dc286f1f9f5e1e8d5c70969b8885a7ab31d99dfde6964ebe04ceca3f6d58"
+    }
+  ],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 4
+  },
+  "job": {
+    "id": "20261004-212655-bf1f",
+    "providerId": "",
+    "started": "2026-10-04T21:26:55Z",
+    "finished": "2026-10-04T21:27:06Z",
+    "cost": 0.277677
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "fc1ae2afc411d29b1a0e3acb66f646fe9aa165332755171154cc14f312ca5949",
+    "variant": 2,
+    "accepted": "2026-10-04T21:27:47Z",
+    "pith": "0.1.0"
+  }
+}

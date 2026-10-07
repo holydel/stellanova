@@ -1,0 +1,26 @@
+{
+  "limits": {"day": 30, "month": 100},
+  "neverSend": ["../refs"],
+  "kinds": {
+    "splash": {
+      "aspect": "16:9",
+      "size": "2K",
+      "variants": 4,
+      "style": "Minimal, calm and neat, with a lot of empty dark space. Palette: space and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail, pin-sharp stars; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no logos, no interface, no lens flares."
+    },
+    "concept": {
+      "model": "gemini-3.1-flash-image",
+      "aspect": "1:1",
+      "size": "1K",
+      "variants": 4,
+      "style": "Clean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares."
+    },
+    "icon": {
+      "model": "gemini-3.1-flash-image",
+      "aspect": "1:1",
+      "size": "1K",
+      "variants": 4,
+      "style": "An item picture for a sci-fi game's inventory, read as small as 64 pixels: one object alone, whole, centered and filling about three quarters of the square, in a three-quarter view from above, on a plain dark background, a soft radial gradient from deep slate blue (#242D41) in the middle to navy black (#0A0F16) at the edges. A bold, simple silhouette and clear shapes; a cool key light from the upper left and a pale cyan rim light (#71B2D8) on the far edges. Palette: steel grays (#686A79, #97999F), dark slate frames (#192130, #3E4D6B), electric blue to pale cyan (#4E87BB, #ACDBE9) as the only bright accent. Crisp and sharp, clean hard edges, realistic materials, cinematic game art. No text, no lettering, no numbers, no logos, no interface, no frame or border, no lens flares."
+    }
+  }
+}

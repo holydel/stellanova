@@ -7,6 +7,16 @@ CMakeUserPresets.json
 # Your own content files (content/README.md): never committed.
 /content/local/
 
+# pith gen's journal of jobs, with every variant it fetched (docs/content-generation.md).
+/.pith/
+
+# Generated images and models stay on this PC for now (the developer,
+# 2026-10-04); their recipes (*.gen.json) are committed.
+/content/generated/**/*.png
+/content/generated/**/*.jpg
+/content/generated/**/*.webp
+/content/generated/**/*.glb
+
 # Other people's pictures, as references for the art style (refs/README.md).
 /refs/*
 !/refs/README.md

@@ -17,6 +17,7 @@ nearest feature.
 | --- | --- | --- | --- |
 | 25669850 | 2026-10-02, morning | the first upload by `scripts/steam-upload.ps1` | set live on the default branch on 2026-10-02 (Windows starts it from Steam) |
 | 25670828 | 2026-10-02 11:46 | "chat, /add_bots, no automatic waves online", built from uncommitted code (roadmap step 45) | unknown (2026-10-03) |
+| 25721237 | 2026-10-05 10:56, the developer's command | protocol 6: sign-ins, the hub with parallel upgrades, the generated models and item pictures (the art pack, both depots), the inventory and the fitting screens; from uncommitted code on commit f66567d | not yet: set it live in Steamworks |
 
 - Which build the default branch serves now is unknown. If it is still
   25669850, its players meet an online server that sends no waves (ADR
@@ -100,8 +101,12 @@ What each depot holds (`build/steam/content/`, copied fresh each time):
 
 | Depot | Files |
 | --- | --- |
-| 1096261 (Windows) | `stellanova.exe`, `stellanova.pak`, `steam_api64.dll` |
-| 1096262 (Linux + SteamOS) | `stellanova`, `stellanova.pak`, `libsteam_api.so` |
+| 1096261 (Windows) | `stellanova.exe`, `stellanova.pak`, `stellanova-art.pak`, `steam_api64.dll` |
+| 1096262 (Linux + SteamOS) | `stellanova`, `stellanova.pak`, `stellanova-art.pak`, `libsteam_api.so` |
+
+The art pack (since 2026-10-05: the splash, the generated models and item
+pictures, about 275 MB) is made only where `content/generated/` is: the
+developer's PC.
 
 The game is built for Vulkan alone, so the Retail folder's other DLLs
 (Dawn, DXC) stay out. The app build script and SteamCMD's logs go to

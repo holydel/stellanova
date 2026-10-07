@@ -2,17 +2,24 @@
 
 #include "resources.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace sn
 {
 using namespace ph;
 
-void Ui::Begin(rhi::CommandList& commands, const render::FrameTime& time, Resources& from)
+void Ui::Begin(rhi::CommandList& commands, const render::FrameTime& time, Resources& from,
+               f32 minWidth, os::SafeInsets insets)
 {
 	resources = &from;
-	scale = f32(commands.size.height) / HEIGHT;
+	scale = f32(commands.size.height) / HEIGHT * sizeFactor;
+	if (minWidth > 0.0f)
+		scale = std::min(scale, f32(commands.size.width) / minWidth);
 	width = f32(commands.size.width) / scale;
+	height = f32(commands.size.height) / scale;
+	top = insets.top / scale;
+	bottom = height - insets.bottom / scale;
 	render::UpdateTextFonts();
 	// One canvas unit is a pixel, with y up: the top left is (0, 0).
 	render::Camera2D camera;
@@ -53,6 +60,14 @@ void Ui::Box(f32 x, f32 y, f32 w, f32 h, u32 color)
 	const f32 halfW = 0.5f * w * scale;
 	const f32 halfH = 0.5f * h * scale;
 	render::DrawSprite({x * scale + halfW, -(y * scale + halfH)}, {halfW, halfH}, 0.0f, color);
+}
+
+void Ui::Image(const render::SpriteTexture& texture, f32 x, f32 y, f32 w, f32 h, Vec4 uv, u32 color)
+{
+	const f32 halfW = 0.5f * w * scale;
+	const f32 halfH = 0.5f * h * scale;
+	render::DrawTexturedSprite({x * scale + halfW, -(y * scale + halfH)}, {halfW, halfH}, 0.0f,
+	                           color, texture, uv);
 }
 
 void Ui::Line(Vec2 a, Vec2 b, f32 lineWidth, u32 color)

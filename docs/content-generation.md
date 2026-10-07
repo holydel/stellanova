@@ -66,6 +66,11 @@ else of it is generated from that design, never from another form.
 
 ### Module icons
 
+The developer, 2026-10-04: vector icons drawn by hand for now, one set for
+the game and the site (`content/icons/README.md`), baked into a font of
+the game's own (`scripts/icons.py`) and drawn as MTSDF glyphs, as planned
+below. Generated ones can replace them later, the plan's way:
+
 - **What:** one-color glyphs on a common grid, drawn by the game the way it
   draws text: tinted by the interface's palette, with an outline or a glow,
   crisp at any size (MTSDF, like pith's fonts). States (ready, cooling
@@ -233,8 +238,9 @@ the others when ship models start:
   project's cap.
 - **Setting a key:** Windows' environment variables window (Win+R,
   `rundll32 sysdm.cpl,EditEnvironmentVariables`), "User variables", New.
-  Restart VS Code afterwards so the tools see it. Typing keys into a
-  terminal leaves them in its history.
+  pith reads the user's variables as saved, so `pith gen` sees a new key
+  at once (pith ADR 0041); other tools need VS Code restarted. Typing keys
+  into a terminal leaves them in its history.
 - **Never paste a key into the chat** or into a file in a repository.
   `pith gen providers` (step 48) shows which keys are set, without them.
 
@@ -247,7 +253,12 @@ is its plan's "Order of work".
    Claude's palette board and notes (`pith image palette` is done).
 2. **Step 48, the plumbing:** `pith gen` with Gemini, OpenAI and Recraft,
    recipes and budget limits. Built and tested against a fake provider;
-   the first real run needs the keys above.
+   the first real run needs the keys above. In part (pith ADR 0041,
+   2026-10-04): Gemini's images (`pith gen providers | image | accept |
+   jobs`). `content/gen.json` holds the limits and refuses anything in
+   `refs/` as a reference; jobs wait in `.pith/gen` (git-ignored). The
+   developer's `GEMINI_API_KEY` works (a second key: the first one's
+   project had no billing); the first tests are below.
 3. **Three style directions** through `pith gen`; the developer chooses;
    the style bible and its anchors.
 4. **Step 49, the hub v1:** generate a model, review it in the editor
@@ -255,6 +266,153 @@ is its plan's "Order of work".
    game; design sheets and their forms.
 5. **Steps 50-54:** icons, the interface, ship models, space objects,
    trailer clips.
+
+## First tests (2026-10-04)
+
+Nine images through `pith gen image` from text alone (no house style yet),
+$0.76 in all; kept in `content/local/gen-tests/` (git-ignored) with their
+recipes.
+
+- **Ships from above** (Nano Banana 2): a fighter and a cruiser with clear
+  silhouettes, engines and team-color areas; the fighter at first had
+  invented lettering on it, which "no text or lettering" removed.
+- **The same ship from another view:** asked for the fighter's
+  three-quarter view with its top view as the reference, the model gave
+  the top view back. Design sheets need another way (pith ADR 0041).
+- **Pro** drew the fighter as a painted sketch pointing left, and the HUD
+  as pixel art: it takes more liberties. It costs twice as much and is
+  half as fast.
+- **A module icon:** a clean one-color glyph on black, ready to become a
+  vector, though it reads more as "power" than "shield".
+- **The HUD:** Nano Banana 2 made a busy, cinematic battle with numbers
+  and labels despite "no readable text"; Pro's top-down screen read
+  better. Mockups are for choosing a look, not for pixels (as planned).
+- **Space:** a Mars-like desert planet lit from the left, with a thin
+  atmosphere, and a teal and magenta nebula ready to use as a layer.
+
+## The menu's splash (2026-10-04)
+
+The first generated asset in the game: the main menu's background.
+
+- **The brief (the developer):** laconic and neat; nebulae far behind; a
+  planet that almost hides its sun; one ship and two asteroids in front;
+  gray and blue.
+- **The prompt:** the scene as the subject; the look as the `splash` kind's
+  style in `content/gen.json`, so later key art matches. The backlit
+  eclipse turns everything in front into rim-lit silhouettes. The left
+  third stays dark for the title and the items.
+- **The palette:** the developer's color reference, a picture of their
+  own choosing kept outside the repository. Only its numbers went into the
+  style (`pith image palette`: deep navy blacks, slate blues, electric blue
+  to pale cyan light, steel gray hulls); its pixels went to no provider.
+- **Four rounds, $2.25 in all:**
+  1. six variants at 2K;
+  2. the developer chose one, which was soft;
+  3. it was edited into the palette at 4K, with itself as the reference;
+  4. the developer chose Nano Banana Pro's second edit, the sharpest.
+- **Where it is:** `content/generated/splash/menu.png` (5504x3072) and its
+  recipe `menu.png.gen.json`.
+  - The image stays on this PC for now (the developer, 2026-10-04); the
+    recipe is committed.
+  - Block compression will read its textures from this folder.
+- **In the game:** `content/art.json` packs it at 1920x1072 with mip levels
+  into `stellanova-art.pak` (10.5 MB).
+  - The game reads that pack with its main pack, and the menu waits for
+    both. The developer, 2026-10-04: no glimpse of the old menu. The
+    turning ship and the stars are gone, and the splash is the whole
+    background. Reading it first costs about 40 ms of startup on the PC.
+  - Builds without the image show the menu on the dark.
+  - On the web without mip levels (`content/art-web.json`): the web
+    preloads every pack before starting, so the page loads 8 MB more,
+    about 20 MB in all (the developer's choice, 2026-10-04).
+  - Android's APK gets it from `scripts/build.ps1` (pith's
+    `android-build.ps1 -ExtraPacks`).
+  - The menu's screenshot test shows the splash.
+- **Open:** the title's warm gold against the cold blue (keep it, or a cold
+  white); a 2560-pixel pack for 1440p screens once textures are
+  compressed.
+
+## Concepts for the first models (2026-10-04)
+
+The developer, 2026-10-04: concepts first, then Meshy; one colony scene;
+turrets are not modeled (the player's ship shows its turret in the HUD).
+
+- **36 pictures in 14 jobs, $2.44** (Nano Banana 2, and Pro for two colony
+  scenes). A `concept` kind in `content/gen.json` carries the splash's
+  palette for one object on a plain background, without lettering.
+- **Waiting for the developer's picks** in `.pith/gen` (not accepted), with
+  a local gallery that lists each picture's id, job, cost and a note.
+- **What came out:**
+  - the Lancer from above, four designs: L2 (slim, forward-swept wings,
+    blue light strips, twin engines) reads best small; L3 grew from the
+    menu splash's ship;
+  - the Lancer at three-quarters, from L2 as the reference: the first
+    attempt changed the view and kept the design. A lower camera failed:
+    with a three-quarter picture among the references, the model copies
+    its view. Next time, send only the top view;
+  - the Raider: a pincer silhouette, patched plates, red-orange accents;
+  - the five buildings, two each: one family (octagonal modules on pads,
+    dark frames, blue light strips), mostly as clean game art, simple
+    enough for image-to-3D;
+  - the colony scene: daylight first (too bright, off-palette), then a
+    night-side round from the chosen buildings: the moon's cratered
+    ground, the gas giant behind the horizon, the buildings in an arc,
+    the lower third left free. The game's scene follows that layout.
+- **The developer's picks** (2026-10-05), accepted into
+  `content/generated/concepts/` (the pictures stay on this PC like the
+  splash; their recipes are committed): L1 (`lancer_top`), L3Q1
+  (`lancer_three_quarter`), R4 (`raider_top`), MINE1, EXT2, FAB2, DEP1,
+  CMD1 (`mine`, `extractor`, `fab`, `depot`, `command`) and SCN1
+  (`colony_scene`: the daylight cluster, which the game's scene follows).
+  - L3Q1 was made from L2, the same design as L1 drawn cleaner; it adds tail
+    fins. If Meshy mixes the two views badly, a three-quarter view made
+    from L1 alone costs about $0.14.
+  - EXT2's stairs and railings are the hardest picks for image-to-3D.
+
+## The first models (2026-10-05)
+
+`pith gen model` (pith ADR 0041's addendum): Meshy's multi-image to 3D,
+meshy-7.1, 30 credits ($0.60 on Pro) whatever the texture size; models go
+to `content/generated/models/` (git-ignored like the pictures, their
+recipes committed).
+
+- **The depot first** (DEP1, 20k triangles, 2k maps): faithful to the
+  concept from its corner; a smeared wall between the racks, the crane
+  without its hook. The developer liked it and set the budget for the rest
+  (2026-10-05): **150k triangles, 4k maps.**
+- **The command center and the fab** (CMD1, FAB2) at that budget: 135k and
+  131k triangles, 4096-pixel base color and normal maps, a 2048-pixel
+  metal-roughness map, 34-37 MB each. Both close to their concepts.
+- **What every Meshy model needs in the game** (`client/src/resources.cpp`):
+  - its metal maps make painted walls half metal: the game scales metal by
+    0.3;
+  - no emissive map: the blue strips are painted, they do not glow;
+  - its own octagonal pad: the scene draws none under it.
+- **In the game:** the art pack (`content/art.json`) holds each model at
+  1024 pixels, with the colony's light (`scripts/colony_light.py`) and the
+  BRDF table: 83 MB for three, 261 MB for all eight. The web gets them
+  too (the developer, 2026-10-05: on a fast line it still starts in
+  seconds); pith's packs have no block compression or simplified meshes
+  yet (pith ADR 0039), the way to make them smaller later.
+- **The night of 2026-10-05** (the developer asleep, picks mine; every
+  variant waits in `.pith/gen` to be swapped):
+  - with a texture prompt (matte painted panels, glowing strips), Meshy
+    adds an emissive map: the lights glow. The mine, the extractor, the
+    depot again, the command center and the fab again, all at 150k and
+    4k ($4.20);
+  - the Lancer from L3Q1 and L1 together: faithful, its strips glowing;
+    the Raider from R4 and a three-quarter view made from it (#2 of 4),
+    red-orange glow; a crater (#1 of 4) for the colony's ground ($2.30
+    with the concepts);
+  - item pictures, the `icon` kind (a dark slate square, the item in a
+    three-quarter view, a cyan rim light), four each: Pulse laser S #2,
+    Plasma gun S #1, Plasma charge S #4 (forged iron rods), Shield
+    booster S #4, Capacitor battery S #3, metal #3, He-3 #2, chips #4
+    ($2.20).
+  - In the game: ships are turned nose to -z and scaled to the Kenney
+    ship's length (the flight's flames and shields follow); the crater is
+    sunk to its flat ring and darkened to the ground's gray; buildings
+    brighten under the pointer by their color (their own glow stays).
 
 ## Shipping generated content
 
@@ -270,7 +428,9 @@ is its plan's "Order of work".
 
 ## Still open
 
-- The starting caps: $50 a month and $5 a day, proposed on 2026-10-03.
+- The caps in `content/gen.json`: $100 a month and $30 a day since
+  2026-10-05 (the developer: the month's $50-100 matters, not the day's;
+  Meshy's credits are prepaid). They were $50 and $5 from 2026-10-04.
 - Where generated binaries live once they grow (a textured ship is 5-20
   MB): committed while small, Git LFS, or a bucket.
 - Recraft's written answer (above).

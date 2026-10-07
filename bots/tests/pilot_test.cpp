@@ -1,4 +1,6 @@
 #include <sn/bots/pilot.h>
+#include <sn/sim/catalog.h>
+#include <sn/sim/fitting.h>
 
 #include <doctest/doctest.h>
 
@@ -13,122 +15,134 @@ namespace
 // Worlds hold every pool inline: too big for a test's stack.
 std::unique_ptr<World> MakeWorld() { return std::make_unique<World>(); }
 
-ShipHandle Spawn(World& world, Vec2 position, u8 team, f32 angle = 0.0f)
+Ship WithLaser()
 {
+	ShipPlan plan;
+	plan.hull = "lancer";
+	plan.modules = {"laser_s"};
 	Ship ship;
+	CHECK(MakeShip(GetCatalog(), FitFromPlan(GetCatalog(), plan), ship));
+	return ship;
+}
+
+ShipHandle Spawn(World& world, Vec2 position, u8 team, Ship ship = {})
+{
 	ship.position = position;
-	ship.angle = angle;
 	ship.team = team;
 	return SpawnShip(world, ship);
 }
 
-struct Tally
+// Follows an order for `seconds`; returns the bumps into rocks.
+u32 Follow(World& world, ShipHandle handle, const bots::Order& order, f32 seconds,
+           ShipHandle target = {}, f32 distance = 0.0f)
 {
-	u32 fired = 0; // by the bot
-	u32 hits = 0;  // on the target, shield or hull
-	u32 bumps = 0; // the bot's, into rocks
-	bool destroyed = false;
-};
-
-// The bot flies for `seconds`, or until the target is destroyed.
-Tally FlyFor(World& world, ShipHandle bot, bots::Pilot& pilot, const bots::PilotSkill& skill,
-             ShipHandle target, f32 seconds)
-{
-	Tally tally;
-	for (u32 i = 0; i < u32(seconds * f32(TICK_RATE)) && !tally.destroyed; ++i)
+	u32 bumps = 0;
+	for (u32 i = 0; i < u32(seconds * f32(TICK_RATE)); ++i)
 	{
-		SetControls(world, bot, bots::Fly(world, bot, pilot, skill));
+		const Ship* other = GetShip(world, target);
+		const bots::Mark mark = other ? bots::Mark{other->position, other->velocity} : bots::Mark{};
+		SetControls(world, handle,
+		            bots::Steer(*GetShip(world, handle), order, other ? &mark : nullptr, distance,
+		                        world.rocks, world.rockCount));
 		Step(world);
 		for (u32 e = 0; e < world.eventCount; ++e)
-		{
-			const Event& event = world.events[e];
-			tally.fired += event.type == EventType::Fired && event.ship == bot;
-			tally.hits +=
-				(event.type == EventType::ShieldHit || event.type == EventType::HullHit) &&
-				event.ship == target;
-			tally.bumps +=
-				event.type == EventType::ShipBumped && event.ship == bot && event.rock != NO_ROCK;
-			tally.destroyed |= event.type == EventType::ShipDestroyed && event.ship == target;
-		}
+			bumps += world.events[e].type == EventType::ShipBumped &&
+			         world.events[e].ship == handle && world.events[e].index != NO_INDEX;
 	}
-	return tally;
+	return bumps;
 }
 } // namespace
 
-TEST_CASE("bots: the lead meets a moving target")
-{
-	// A target 40 m ahead, crossing at 20 m/s; shots at 90 m/s.
-	const Vec2 from = {0.0f, 0.0f};
-	const Vec2 at = {0.0f, 40.0f};
-	const Vec2 crossing = {20.0f, 0.0f};
-	const Vec2 lead = bots::Lead(from, {}, 90.0f, at, crossing);
-	CHECK(lead.x > 0.0f);
-	// A shot toward the lead gets there when the target does.
-	const f32 shotTime = Length(lead - from) / 90.0f;
-	const f32 targetTime = Length(lead - at) / 20.0f;
-	CHECK(shotTime == doctest::Approx(targetTime).epsilon(0.001));
-	// Still targets: aim at them. Out of reach: aim at them too.
-	CHECK(bots::Lead(from, {}, 90.0f, at, {}).y == doctest::Approx(40.0f));
-	CHECK(bots::Lead(from, {}, 10.0f, at, {0.0f, 50.0f}).y == 40.0f);
-}
-
-TEST_CASE("bots: a bot turns to its target and fires once it faces it")
+TEST_CASE("orders: a ship flies to a point and stops there")
 {
 	auto world = MakeWorld();
-	const ShipHandle target = Spawn(*world, {30.0f, 0.0f}, PLAYERS);
-	const ShipHandle bot = Spawn(*world, {}, BOTS); // facing +y: the target is to its right
-	bots::Pilot pilot;
-	bots::PilotSkill skill;
-	skill.aimError = 0.0f;
-	// The first ticks turn it without firing.
-	SetControls(*world, bot, bots::Fly(*world, bot, pilot, skill));
-	CHECK(GetShip(*world, bot)->controls.turn < 0.0f); // right is negative
-	CHECK(!GetShip(*world, bot)->controls.fire);
-	const Tally tally = FlyFor(*world, bot, pilot, skill, target, 1.5f);
-	CHECK(pilot.target == target);
-	CHECK(tally.fired >= 2);
-	CHECK(tally.hits >= 1);
+	const ShipHandle ship = Spawn(*world, {}, PLAYERS);
+	bots::Order order;
+	order.kind = bots::Order::Kind::Move;
+	order.point = {60.0f, -40.0f}; // behind it and to the side
+	Follow(*world, ship, order, 12.0f);
+	const Ship& state = *GetShip(*world, ship);
+	CHECK(Length(state.position - order.point) < 3.0f);
+	CHECK(Length(state.velocity) < 2.0f);
+
+	// Stop: it slows down where it is.
+	GetShip(*world, ship)->velocity = {30.0f, 0.0f};
+	Follow(*world, ship, {}, 4.0f);
+	CHECK(Length(GetShip(*world, ship)->velocity) < 1.0f);
 }
 
-TEST_CASE("bots: a bot never fires at its own team")
+TEST_CASE("orders: a ship flies around a rock in its way")
 {
-	auto world = MakeWorld();
-	const ShipHandle friendly = Spawn(*world, {0.0f, 30.0f}, BOTS);
-	const ShipHandle bot = Spawn(*world, {}, BOTS);
-	bots::Pilot pilot;
-	const Tally tally = FlyFor(*world, bot, pilot, {}, friendly, 3.0f);
-	CHECK(!pilot.target);
-	CHECK(tally.fired == 0);
-}
-
-TEST_CASE("bots: a bot flies around a rock in its way")
-{
-	// The target is straight ahead, behind a rock.
 	auto world = MakeWorld();
 	world->rocks[world->rockCount++] = {{0.0f, 35.0f}, 6.0f, RockHealth(6.0f)};
-	const ShipHandle target = Spawn(*world, {0.0f, 90.0f}, PLAYERS);
-	GetShip(*world, target)->hull.health = 1000.0f; // it outlasts the test
-	GetShip(*world, target)->health = 1000.0f;
-	const ShipHandle bot = Spawn(*world, {}, BOTS);
-	bots::Pilot pilot;
-	bots::PilotSkill skill;
-	skill.range = 0.0f; // no firing: the rock stays
-	const Tally tally = FlyFor(*world, bot, pilot, skill, target, 5.0f);
-	CHECK(tally.bumps == 0);
-	CHECK(world->rocks[0].health > 0.0f);
-	// It got past the rock, near its target.
-	CHECK(GetShip(*world, bot)->position.y > 45.0f);
+	const ShipHandle ship = Spawn(*world, {}, PLAYERS);
+	bots::Order order;
+	order.kind = bots::Order::Kind::Move;
+	order.point = {0.0f, 80.0f};
+	CHECK(Follow(*world, ship, order, 8.0f) == 0);
+	CHECK(Length(GetShip(*world, ship)->position - order.point) < 4.0f);
 }
 
-TEST_CASE("bots: a bot destroys a ship that holds still, in a few passes")
+TEST_CASE("orders: an attack closes in and circles the target at its distance")
 {
 	auto world = MakeWorld();
-	const ShipHandle target = Spawn(*world, {20.0f, 60.0f}, PLAYERS);
+	const ShipHandle ship = Spawn(*world, {}, PLAYERS, WithLaser());
+	const ShipHandle target = Spawn(*world, {0.0f, 160.0f}, BOTS);
+	GetShip(*world, target)->hull.health = 1e6f;
+	GetShip(*world, target)->health = 1e6f;
+	const f32 distance = bots::AttackDistance(*GetShip(*world, ship), 0.8f);
+	CHECK(distance == doctest::Approx(80.0f));
+	bots::Order order;
+	order.kind = bots::Order::Kind::Attack;
+	Follow(*world, ship, order, 10.0f, target, distance);
+	// Around it, at the distance, still moving; its laser on it.
+	f32 nearest = 1e9f;
+	f32 farthest = 0.0f;
+	for (u32 i = 0; i < 4; ++i)
+	{
+		Follow(*world, ship, order, 1.0f, target, distance);
+		const f32 apart =
+			Length(GetShip(*world, ship)->position - GetShip(*world, target)->position);
+		nearest = std::min(nearest, apart);
+		farthest = std::max(farthest, apart);
+	}
+	CHECK(nearest > 0.7f * distance);
+	CHECK(farthest < 1.2f * distance);
+	CHECK(Length(GetShip(*world, ship)->velocity) > 10.0f);
+	CHECK(GetShip(*world, target)->shield < GetShip(*world, target)->hull.shield);
+}
+
+TEST_CASE("bots: a bot attacks the nearest enemy, never its own team")
+{
+	auto world = MakeWorld();
+	const ShipHandle friendly = Spawn(*world, {0.0f, 20.0f}, BOTS);
+	const ShipHandle bot = Spawn(*world, {}, BOTS, WithLaser());
+	const ShipHandle player = Spawn(*world, {150.0f, 0.0f}, PLAYERS);
+	const ShipHandle far = Spawn(*world, {-250.0f, 0.0f}, PLAYERS);
+	bots::Pilot pilot;
+	const bots::PilotSkill skill;
+	for (u32 i = 0; i < 12 * TICK_RATE; ++i)
+	{
+		SetControls(*world, bot, bots::Fly(*world, bot, pilot, skill));
+		SetTarget(*world, bot, pilot.target);
+		Step(*world);
+	}
+	CHECK(pilot.target == player);
+	CHECK(GetShip(*world, player)->shield < GetShip(*world, player)->hull.shield);
+	CHECK(GetShip(*world, far)->shield == GetShip(*world, far)->hull.shield);
+	CHECK(GetShip(*world, friendly)->shield == GetShip(*world, friendly)->hull.shield);
+}
+
+TEST_CASE("bots: alone, a bot roams")
+{
+	auto world = MakeWorld();
 	const ShipHandle bot = Spawn(*world, {}, BOTS);
 	bots::Pilot pilot;
-	bots::PilotSkill skill;
-	skill.aimError = 0.02f;
-	const Tally tally = FlyFor(*world, bot, pilot, skill, target, 30.0f);
-	CHECK(tally.destroyed);
-	CHECK(!IsAlive(*GetShip(*world, target)));
+	for (u32 i = 0; i < 5 * TICK_RATE; ++i)
+	{
+		SetControls(*world, bot, bots::Fly(*world, bot, pilot, {}));
+		Step(*world);
+	}
+	CHECK(!pilot.target);
+	CHECK(Length(GetShip(*world, bot)->position) > 10.0f);
 }

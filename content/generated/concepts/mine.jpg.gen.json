@@ -1,0 +1,30 @@
+{
+  "kind": "concept",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Concept art of one building of a frontier mining colony on a rocky, airless moon of a gas giant, for a sci-fi strategy game. The colony's buildings are one family: modular and industrial, prefabricated hexagonal and rectangular modules, steel-gray plated walls with fine panel lines, dark slate structural frames, thin electric-blue light strips and small blue-lit windows as the only lights; each stands on its own flat hexagonal foundation pad of dark metal. This building is the metal mine: a sturdy drilling rig over a shaft in the middle of its pad, a lattice drill tower with a heavy drill head, an ore crusher module, and a short covered conveyor feeding two ore hoppers. Seen in a three-quarter view from slightly above (the camera about 30 degrees above the ground, at a front corner), the whole building and its pad centered with a wide empty margin around it, nothing cut off, on a plain near-black background: no ground, no rocks, no other buildings, no vehicles or people. A clear, readable silhouette; even, clear light so every part reads. No text or lettering anywhere.",
+  "style": "Clean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "prompt": "Concept art of one building of a frontier mining colony on a rocky, airless moon of a gas giant, for a sci-fi strategy game. The colony's buildings are one family: modular and industrial, prefabricated hexagonal and rectangular modules, steel-gray plated walls with fine panel lines, dark slate structural frames, thin electric-blue light strips and small blue-lit windows as the only lights; each stands on its own flat hexagonal foundation pad of dark metal. This building is the metal mine: a sturdy drilling rig over a shaft in the middle of its pad, a lattice drill tower with a heavy drill head, an ore crusher module, and a short covered conveyor feeding two ore hoppers. Seen in a three-quarter view from slightly above (the camera about 30 degrees above the ground, at a front corner), the whole building and its pad centered with a wide empty margin around it, nothing cut off, on a plain near-black background: no ground, no rocks, no other buildings, no vehicles or people. A clear, readable silhouette; even, clear light so every part reads. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 2
+  },
+  "job": {
+    "id": "20261004-182435-0d8d",
+    "providerId": "",
+    "started": "2026-10-04T18:24:35Z",
+    "finished": "2026-10-04T18:24:45Z",
+    "cost": 0.137319
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "73ee1a8ea87562975865fc49db257569fa2eb2cd114552394b5fea0cca9ec05b",
+    "variant": 1,
+    "accepted": "2026-10-04T20:19:26Z",
+    "pith": "0.1.0"
+  }
+}

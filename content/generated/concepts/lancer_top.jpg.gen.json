@@ -1,0 +1,30 @@
+{
+  "kind": "concept",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Concept art of the Lancer, the player's light frigate in a sci-fi space war game: a small, fast, light warship about 6 meters long. Seen from directly above in a flat top-down orthographic plan view, its nose pointing straight up, centered, the whole ship visible with a wide empty margin around it, on a plain near-black background. A slim, compact, symmetrical hull with a clean silhouette that still reads at a small size: a pointed nose, short swept wings or fins, and engines at the back with glowing blue exhausts. Our team's color: light blue glowing strips and panels along the hull and wings, clearly visible from above. No gun turrets or cannons: at most one small, low hardpoint bump near the nose for its single weapon. Painted steel-gray armor plates with fine panel lines. Even, clear light so every part reads. No text or lettering anywhere.",
+  "style": "Clean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "prompt": "Concept art of the Lancer, the player's light frigate in a sci-fi space war game: a small, fast, light warship about 6 meters long. Seen from directly above in a flat top-down orthographic plan view, its nose pointing straight up, centered, the whole ship visible with a wide empty margin around it, on a plain near-black background. A slim, compact, symmetrical hull with a clean silhouette that still reads at a small size: a pointed nose, short swept wings or fins, and engines at the back with glowing blue exhausts. Our team's color: light blue glowing strips and panels along the hull and wings, clearly visible from above. No gun turrets or cannons: at most one small, low hardpoint bump near the nose for its single weapon. Painted steel-gray armor plates with fine panel lines. Even, clear light so every part reads. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 2
+  },
+  "job": {
+    "id": "20261004-182403-2aad",
+    "providerId": "",
+    "started": "2026-10-04T18:24:03Z",
+    "finished": "2026-10-04T18:24:13Z",
+    "cost": 0.136798
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "d738f8cc60b0c719d6e8771f2c217778dac82a7997d85736e7e448c6a13fe618",
+    "variant": 1,
+    "accepted": "2026-10-04T20:19:26Z",
+    "pith": "0.1.0"
+  }
+}

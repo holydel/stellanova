@@ -1,0 +1,41 @@
+{
+  "type": "model",
+  "provider": "meshy",
+  "model": "meshy-7.1",
+  "subject": "Matte steel-gray armor plates with dark edges and fine panel lines, not chrome; glowing light-blue strips along the hull and wing edges; small glowing blue engine exhausts; a dark glass canopy.",
+  "prompt": "Matte steel-gray armor plates with dark edges and fine panel lines, not chrome; glowing light-blue strips along the hull and wing edges; small glowing blue engine exhausts; a dark glass canopy.",
+  "references": [
+    {
+      "path": "generated/concepts/lancer_three_quarter.jpg",
+      "sha256": "c6955facc24cd79bd99d45ecd6f456b0ac05ea871f03217134b5af473a4e7637"
+    },
+    {
+      "path": "generated/concepts/lancer_top.jpg",
+      "sha256": "d738f8cc60b0c719d6e8771f2c217778dac82a7997d85736e7e448c6a13fe618"
+    }
+  ],
+  "parameters": {
+    "texture": "4k",
+    "pbr": true,
+    "polycount": 150000,
+    "topology": "triangle",
+    "variants": 1
+  },
+  "job": {
+    "id": "20261004-212613-1d95",
+    "providerId": "01a108cf-6bbd-773b-b0e9-af79f330281e",
+    "started": "2026-10-04T21:26:13Z",
+    "finished": "2026-10-04T21:29:53Z",
+    "cost": 0.6,
+    "credits": 30
+  },
+  "terms": {
+    "url": "https://www.meshy.ai/terms-of-use"
+  },
+  "output": {
+    "sha256": "2e0cf3c026cb7c478c83eaf097ee289ca51a22b0f20a5e1c8a77af2f4885aa87",
+    "variant": 1,
+    "accepted": "2026-10-04T21:31:55Z",
+    "pith": "0.1.0"
+  }
+}

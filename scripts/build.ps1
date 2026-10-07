@@ -26,8 +26,14 @@ if ($Preset -eq 'android') {
 	& $PSCommandPath windows-msvc -Config Dev -Target sn_sim
 	if ($LASTEXITCODE) { exit $LASTEXITCODE }
 	. (Join-Path $PSScriptRoot 'android.ps1')
+	# The menu's splash, where its image is (client/CMakeLists.txt).
+	$extra = @()
+	if (Test-Path (Join-Path $root 'content/generated/splash/menu.png')) {
+		$extra += "$(Join-Path $root 'content/art.json')=stellanova-art.pak"
+	}
 	& (Join-Path $pith 'scripts/android-build.ps1') stellanova -Config $Config -Root $root `
-		-AppId $AndroidAppId -Label $AndroidLabel -Pack (Join-Path $root 'content/initial.json')
+		-AppId $AndroidAppId -Label $AndroidLabel -Pack (Join-Path $root 'content/initial.json') `
+		-ExtraPacks $extra
 	exit $LASTEXITCODE
 }
 

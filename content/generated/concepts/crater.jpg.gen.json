@@ -1,0 +1,30 @@
+{
+  "kind": "concept",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-image",
+  "subject": "Concept art of one impact crater on the surface of an airless rocky moon, for a sci-fi strategy game's colony scene: a round, bowl-shaped crater about 30 meters across with a raised, rough rim of broken regolith and boulders, terraced inner slopes, a flat floor with a few small rocks, and a scatter of ejecta around the rim fading out into a round patch of flat, even ground whose edge is plain and level. Cool light-gray regolith (#97999F to #686A79) with darker shadows; no buildings, no vehicles, no plants. Seen in a three-quarter view from above (the camera about 35 degrees above the ground), the whole crater and its patch of ground centered with a wide empty margin, nothing cut off, on a plain near-black background. Even, clear light so the shape reads. No text or lettering anywhere.",
+  "style": "Clean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "prompt": "Concept art of one impact crater on the surface of an airless rocky moon, for a sci-fi strategy game's colony scene: a round, bowl-shaped crater about 30 meters across with a raised, rough rim of broken regolith and boulders, terraced inner slopes, a flat floor with a few small rocks, and a scatter of ejecta around the rim fading out into a round patch of flat, even ground whose edge is plain and level. Cool light-gray regolith (#97999F to #686A79) with darker shadows; no buildings, no vehicles, no plants. Seen in a three-quarter view from above (the camera about 35 degrees above the ground), the whole crater and its patch of ground centered with a wide empty margin, nothing cut off, on a plain near-black background. Even, clear light so the shape reads. No text or lettering anywhere.\n\nClean and neat: one object, whole and readable, on a plain background. Palette: background and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls and structures in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no lettering, no numbers, no logos, no interface, no lens flares.",
+  "references": [],
+  "parameters": {
+    "aspect": "1:1",
+    "size": "1K",
+    "variants": 4
+  },
+  "job": {
+    "id": "20261004-212655-ebe3",
+    "providerId": "",
+    "started": "2026-10-04T21:26:55Z",
+    "finished": "2026-10-04T21:27:05Z",
+    "cost": 0.274742
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "360d0e74542a9390b62faaa41f49335639b6021c5cf3cc619838afee120a0fc4",
+    "variant": 1,
+    "accepted": "2026-10-04T21:27:47Z",
+    "pith": "0.1.0"
+  }
+}

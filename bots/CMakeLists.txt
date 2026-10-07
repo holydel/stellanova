@@ -1,7 +1,11 @@
-# Bots (docs/adr/0009-bots-v0.md): pilots that fly ships from what the sim
-# shows them. The server runs them for a match's bots.
+# Bots (docs/adr/0009-bots-v0.md, 0013-ships-modules-damage.md): orders
+# turned into controls, and pilots that fly ships from what the sim shows
+# them. The server runs them for a match's bots and escorts; the client
+# steers its own ship by orders.
 add_library(sn_bots STATIC
+	include/sn/bots/orders.h
 	include/sn/bots/pilot.h
+	src/orders.cpp
 	src/pilot.cpp
 )
 add_library(sn::bots ALIAS sn_bots)

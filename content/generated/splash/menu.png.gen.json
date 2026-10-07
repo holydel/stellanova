@@ -1,0 +1,35 @@
+{
+  "kind": "splash",
+  "provider": "gemini",
+  "model": "gemini-3-pro-image",
+  "subject": "Edit the reference image, this game's menu key art. Keep its composition exactly: the dark planet right of center with its thin eclipse rim of light and the small bright sun peeking out at its upper right edge, the ship's shape, size, position and direction, both asteroids, the wisps of nebula, and the empty dark left side. Recolor it to the palette below, and render it again in crisp, sharp detail.",
+  "style": "Minimal, calm and neat, with a lot of empty dark space. Palette: space and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail, pin-sharp stars; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no logos, no interface, no lens flares.",
+  "prompt": "Edit the reference image, this game's menu key art. Keep its composition exactly: the dark planet right of center with its thin eclipse rim of light and the small bright sun peeking out at its upper right edge, the ship's shape, size, position and direction, both asteroids, the wisps of nebula, and the empty dark left side. Recolor it to the palette below, and render it again in crisp, sharp detail.\n\nMinimal, calm and neat, with a lot of empty dark space. Palette: space and dark surfaces in deep navy blacks (#0A0F16, #111722, #192130) and slate blues (#242D41, #3E4D6B); light in electric blue to pale cyan (#4E87BB, #71B2D8, #ACDBE9), the only bright accent; hulls in cool steel grays (#686A79, #97999F). Crisp and sharp everywhere: clean hard edges, fine detail, pin-sharp stars; no haze, no soft focus, no depth-of-field or motion blur. Realistic light, cinematic concept art. No text, no logos, no interface, no lens flares.",
+  "references": [
+    {
+      "path": "local/gen-tests/splash.png",
+      "sha256": "e7d740db1d7b66a79122a9fcc9de2c09d2ccf843be8d62ebdefdd6ffadf520e8"
+    }
+  ],
+  "parameters": {
+    "aspect": "16:9",
+    "size": "4K",
+    "variants": 2
+  },
+  "job": {
+    "id": "20261003-232311-d0c5",
+    "providerId": "",
+    "started": "2026-10-03T23:23:11Z",
+    "finished": "2026-10-03T23:23:54Z",
+    "cost": 0.49485999999999997
+  },
+  "terms": {
+    "url": "https://ai.google.dev/gemini-api/terms"
+  },
+  "output": {
+    "sha256": "f9a1476a49829403856207c6e1b4ee40b924665bbf9458ca452cffab12c622f0",
+    "variant": 2,
+    "accepted": "2026-10-03T23:28:33Z",
+    "pith": "0.1.0"
+  }
+}
